@@ -1,0 +1,67 @@
+rules_version = '2';
+
+// Cramly Firestore security rules.
+// Strategy: every user-owned document lives under users/{userId}/**.
+// Clients can read/write only their own data. All cross-user paths are denied.
+// Server-side writes (worker, analytics jobs) use the Admin SDK, which bypasses
+// rules entirely — so we don't need to allowlist server identities here.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User profile and everything underneath
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      // All subcollections inherit the same access rule.
+      // Listed explicitly for clarity and to surface the data model.
+      match /courses/{courseId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /documents/{documentId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /decks/{deckId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        match /cards/{cardId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+      match /quizzes/{quizId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        match /questions/{questionId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+      match /quizAttempts/{attemptId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /summaries/{summaryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /studyGuides/{studyGuideId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /podcasts/{podcastId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /reviewSessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /topics/{topicId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      // asyncJobs: clients read for live status, but only the server (Admin SDK,
+      // which bypasses these rules) creates and updates them.
+      match /asyncJobs/{jobId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+
+    // Default deny for any path not matched above
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

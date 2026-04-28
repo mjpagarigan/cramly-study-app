@@ -1,0 +1,39 @@
+# Cramly backend dependencies (shared by api and worker services)
+# Pin minor versions; floor patches.
+
+# --- Web framework (api only, harmless for worker) ---
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20
+
+# --- Validation & settings ---
+pydantic==2.10.3
+pydantic-settings==2.7.0
+
+# --- Firebase admin (Firestore, Auth, Storage) ---
+firebase-admin==6.6.0
+
+# --- HTTP client for outbound calls (Groq, ElevenLabs) ---
+httpx==0.28.1
+
+# --- LLM client ---
+groq==0.13.1
+
+# --- Logging ---
+python-json-logger==3.2.1
+
+# --- Env loading (local dev) ---
+python-dotenv==1.0.1
+
+# --- Document extraction (sprint 3) ---
+pdfplumber==0.11.4
+PyMuPDF==1.25.1
+python-docx==1.1.2
+python-pptx==1.0.2
+pytesseract==0.3.13      # also needs the Tesseract binary on the host (see SETUP.md §3.8)
+Pillow==11.1.0           # image preprocessing for OCR
+youtube-transcript-api==0.6.3
+trafilatura==2.0.0       # web article extraction
+
+# --- Future sprints (left commented to keep installs lean until needed) ---
+# pydub==0.25.1                     # sprint 10/11 (audio splitting for podcast assembly)

@@ -1,0 +1,78 @@
+# Cramly — Render blueprint.
+# Two services from a single repo: FastAPI web service + Python background worker.
+# Region: singapore (closest to asia-southeast1 Firebase region).
+#
+# After first push:
+#   1. Connect repo on Render
+#   2. Render auto-detects this file and creates both services
+#   3. Set the env vars marked `sync: false` in the dashboard for each service
+
+services:
+  # --- FastAPI service ---
+  - type: web
+    name: cramly-api
+    runtime: python
+    region: singapore
+    plan: starter   # bump to standard/pro after MVP launch
+    rootDir: backend
+    pythonVersion: "3.11"
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SERVICE_NAME
+        value: cramly-api
+      - key: FIREBASE_PROJECT_ID
+        value: cramly-cd9b5
+      - key: FIREBASE_STORAGE_BUCKET
+        value: cramly-cd9b5.firebasestorage.app
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      # Secrets — set in Render dashboard, do not commit
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+  # --- Background worker ---
+  - type: worker
+    name: cramly-worker
+    runtime: python
+    region: singapore
+    plan: starter
+    rootDir: backend
+    pythonVersion: "3.11"
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m worker.worker
+    autoDeploy: true
+    envVars:
+      - key: ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: SERVICE_NAME
+        value: cramly-worker
+      - key: FIREBASE_PROJECT_ID
+        value: cramly-cd9b5
+      - key: FIREBASE_STORAGE_BUCKET
+        value: cramly-cd9b5.firebasestorage.app
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: WORKER_POLL_INTERVAL_SECONDS
+        value: "2"
+      - key: WORKER_HEARTBEAT_INTERVAL_SECONDS
+        value: "30"
+      # Secrets — set in Render dashboard
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false

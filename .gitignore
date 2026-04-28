@@ -1,0 +1,63 @@
+# --- Secrets ---
+.env
+.env.local
+.env.*.local
+*-service-account*.json
+firebase-adminsdk-*.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Flutter / Dart ---
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/.packages
+mobile/.pub-cache/
+mobile/.pub/
+mobile/build/
+mobile/ios/Pods/
+mobile/ios/.symlinks/
+mobile/ios/Flutter/Flutter.framework
+mobile/ios/Flutter/Flutter.podspec
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/android/key.properties
+mobile/android/app/upload-keystore.jks
+mobile/coverage/
+mobile/.fvm/
+# NOTE: firebase_options.dart, GoogleService-Info.plist, google-services.json
+# are intentionally committed. Firebase API keys are public; access is enforced
+# by Auth + Firestore/Storage rules, not by key secrecy. Real secrets
+# (FIREBASE_SERVICE_ACCOUNT_JSON, GROQ_API_KEY, ELEVENLABS_API_KEY) live in
+# backend/.env (gitignored above) and Render dashboard env vars.
+
+# --- IDE ---
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Logs ---
+*.log
