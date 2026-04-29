@@ -191,6 +191,7 @@ class _Header extends StatelessWidget {
         DocumentSourceType.pdf => Icons.picture_as_pdf,
         DocumentSourceType.docx => Icons.description,
         DocumentSourceType.pptx => Icons.slideshow,
+        DocumentSourceType.markdown => Icons.notes,
         DocumentSourceType.image => Icons.image,
         DocumentSourceType.audio => Icons.mic,
         DocumentSourceType.youtube => Icons.play_circle,

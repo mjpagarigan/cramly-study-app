@@ -96,6 +96,7 @@ class _SourceStep extends ConsumerWidget {
     _FormatTile(label: 'PDF', icon: Icons.picture_as_pdf, sub: '.pdf'),
     _FormatTile(label: 'DOCX', icon: Icons.description, sub: '.docx'),
     _FormatTile(label: 'PPTX', icon: Icons.slideshow, sub: '.pptx'),
+    _FormatTile(label: 'Markdown', icon: Icons.notes, sub: '.md'),
     _FormatTile(label: 'Image', icon: Icons.image, sub: 'OCR'),
     _FormatTile(label: 'Audio', icon: Icons.mic, sub: 'Whisper'),
     _FormatTile(label: 'YouTube', icon: Icons.play_circle, sub: 'URL'),
@@ -131,7 +132,7 @@ class _SourceStep extends ConsumerWidget {
         ),
         const SizedBox(height: Spacing.xl),
         InkWell(
-          onTap: () => _pickFile(ref),
+          onTap: () => _pickFile(context, ref),
           borderRadius: const BorderRadius.all(Radius.circular(20)),
           child: DottedBox(
             color: c.border,
@@ -163,7 +164,7 @@ class _SourceStep extends ConsumerWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'PDF, DOCX, PPTX, image, audio',
+                    'PDF, DOCX, PPTX, MD, image, audio',
                     style: TextStyle(fontSize: 13, color: c.textMuted),
                   ),
                 ],
@@ -208,10 +209,26 @@ class _SourceStep extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickFile(WidgetRef ref) async {
-    final source = await pickAndBuildSource();
-    if (source == null) return;
-    ref.read(uploadControllerProvider.notifier).pickedSource(source);
+  Future<void> _pickFile(
+    BuildContext context,
+    WidgetRef ref, {
+    DocumentSourceType? only,
+  }) async {
+    try {
+      final source = await pickAndBuildSource(only: only);
+      if (source == null) return;
+      ref.read(uploadControllerProvider.notifier).pickedSource(source);
+    } on UnsupportedFileException catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Couldn\'t pick file: $e')),
+      );
+    }
   }
 
   Future<void> _onFormatTap(
@@ -219,18 +236,25 @@ class _SourceStep extends ConsumerWidget {
     WidgetRef ref,
     String label,
   ) async {
-    if (label == 'YouTube') {
-      await showUrlInputSheet(context, ref,
-          sourceType: DocumentSourceType.youtube);
+    final type = switch (label) {
+      'PDF' => DocumentSourceType.pdf,
+      'DOCX' => DocumentSourceType.docx,
+      'PPTX' => DocumentSourceType.pptx,
+      'Markdown' => DocumentSourceType.markdown,
+      'Image' => DocumentSourceType.image,
+      'Audio' => DocumentSourceType.audio,
+      'YouTube' => DocumentSourceType.youtube,
+      'Web' => DocumentSourceType.webUrl,
+      _ => null,
+    };
+
+    if (type == DocumentSourceType.youtube || type == DocumentSourceType.webUrl) {
+      await showUrlInputSheet(context, ref, sourceType: type!);
       return;
     }
-    if (label == 'Web') {
-      await showUrlInputSheet(context, ref,
-          sourceType: DocumentSourceType.webUrl);
-      return;
-    }
-    // Everything else routes through the same file picker.
-    await _pickFile(ref);
+    // Format tile → narrow picker for that one format. Single-MIME requests
+    // are way more reliable on Android SAF than mixed-MIME ones.
+    await _pickFile(context, ref, only: type);
   }
 }
 

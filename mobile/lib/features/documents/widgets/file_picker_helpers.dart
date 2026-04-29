@@ -8,19 +8,26 @@ import '../providers/upload_state.dart';
 const _pdfExt = ['pdf'];
 const _docxExt = ['docx'];
 const _pptxExt = ['pptx'];
+const _markdownExt = ['md', 'markdown'];
 const _imageExt = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'tiff'];
 const _audioExt = ['mp3', 'm4a', 'wav', 'flac', 'ogg', 'webm'];
 
-const allowedExtensions = [
+const _allowedExtensions = [
   ..._pdfExt,
   ..._docxExt,
   ..._pptxExt,
+  ..._markdownExt,
   ..._imageExt,
   ..._audioExt,
 ];
 
-/// Maps a file's extension to its `DocumentSourceType` and a sensible
-/// MIME type. Returns null for unsupported extensions.
+class UnsupportedFileException implements Exception {
+  UnsupportedFileException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 ({DocumentSourceType type, String mimeType})? sourceTypeForExt(String ext) {
   final lower = ext.toLowerCase();
   if (_pdfExt.contains(lower)) {
@@ -40,6 +47,9 @@ const allowedExtensions = [
           'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     );
   }
+  if (_markdownExt.contains(lower)) {
+    return (type: DocumentSourceType.markdown, mimeType: 'text/markdown');
+  }
   if (_imageExt.contains(lower)) {
     return (type: DocumentSourceType.image, mimeType: 'image/$lower');
   }
@@ -49,20 +59,54 @@ const allowedExtensions = [
   return null;
 }
 
-Future<UploadSource?> pickAndBuildSource() async {
-  final result = await FilePicker.platform.pickFiles(
-    type: FileType.custom,
-    allowedExtensions: allowedExtensions,
-    withData: false,
-  );
+List<String> _extensionsFor(DocumentSourceType type) => switch (type) {
+      DocumentSourceType.pdf => _pdfExt,
+      DocumentSourceType.docx => _docxExt,
+      DocumentSourceType.pptx => _pptxExt,
+      DocumentSourceType.markdown => _markdownExt,
+      DocumentSourceType.image => _imageExt,
+      DocumentSourceType.audio => _audioExt,
+      _ => _allowedExtensions,
+    };
+
+/// Opens the system file picker. When [only] is null, uses `FileType.any` so
+/// Android's SAF doesn't get confused by a multi-MIME custom request and
+/// default to a single source like Google Drive. When [only] is a specific
+/// format, uses a tighter `FileType.custom` filter for that format only.
+///
+/// Returns null if the user cancelled. Throws [UnsupportedFileException] if
+/// the user picked something that isn't a supported study material.
+Future<UploadSource?> pickAndBuildSource({DocumentSourceType? only}) async {
+  final result = only == null
+      ? await FilePicker.platform.pickFiles(type: FileType.any)
+      : await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: _extensionsFor(only),
+        );
+
   if (result == null || result.files.isEmpty) return null;
 
   final picked = result.files.single;
-  if (picked.path == null) return null;
+  if (picked.path == null) {
+    throw UnsupportedFileException(
+      'Could not read this file. Try downloading it locally first if it\'s on Drive.',
+    );
+  }
 
-  final ext = picked.extension ?? '';
+  final ext = (picked.extension ?? '').toLowerCase();
   final mapping = sourceTypeForExt(ext);
-  if (mapping == null) return null;
+  if (mapping == null) {
+    throw UnsupportedFileException(
+      'Unsupported file type: .${ext.isEmpty ? '?' : ext}. '
+      'Pick a PDF, DOCX, PPTX, image, or audio file.',
+    );
+  }
+
+  if (only != null && mapping.type != only) {
+    throw UnsupportedFileException(
+      'Expected ${only.name.toUpperCase()}, got .$ext',
+    );
+  }
 
   return UploadSource.file(
     file: File(picked.path!),

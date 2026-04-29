@@ -12,12 +12,16 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-SourceType = Literal["pdf", "docx", "pptx", "image", "audio", "youtube", "web_url"]
+SourceType = Literal[
+    "pdf", "docx", "pptx", "markdown", "image", "audio", "youtube", "web_url"
+]
 DocumentStatus = Literal["uploading", "extracting", "ready", "failed"]
 
 
 # Sources that originate from a Firebase Storage upload (vs. a URL fetch).
-FILE_SOURCES: tuple[SourceType, ...] = ("pdf", "docx", "pptx", "image", "audio")
+FILE_SOURCES: tuple[SourceType, ...] = (
+    "pdf", "docx", "pptx", "markdown", "image", "audio",
+)
 
 
 class GeneratedAssets(BaseModel):

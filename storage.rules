@@ -22,6 +22,7 @@ service firebase.storage {
                         + 'application/vnd.openxmlformats-.*|'
                         + 'application/msword|'
                         + 'application/vnd.ms-powerpoint|'
+                        + 'text/markdown|'
                         + 'text/plain'
                       );
     }

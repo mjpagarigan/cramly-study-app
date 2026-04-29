@@ -32,6 +32,7 @@ from api.services.extraction import (
     audio,
     docx,
     image,
+    markdown,
     pdf,
     pptx,
     web,
@@ -286,6 +287,8 @@ def _dispatch_file(source_type: SourceType, local_path: str) -> ExtractionResult
         return docx.extract(local_path)
     if source_type == "pptx":
         return pptx.extract(local_path)
+    if source_type == "markdown":
+        return markdown.extract(local_path)
     if source_type == "image":
         return image.extract(local_path)
     if source_type == "audio":
