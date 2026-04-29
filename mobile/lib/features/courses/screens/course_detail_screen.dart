@@ -6,6 +6,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../decks/providers/deck_providers.dart';
+import '../../decks/widgets/deck_form_sheet.dart';
+import '../../decks/widgets/deck_row.dart';
 import '../../documents/providers/document_providers.dart';
 import '../../documents/widgets/document_row.dart';
 import '../data/course_model.dart';
@@ -95,8 +98,9 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
                       height: 20,
                       decoration: BoxDecoration(
                         color: color,
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(6)),
+                        borderRadius: const BorderRadius.all(
+                          Radius.circular(6),
+                        ),
                       ),
                     ),
                   ),
@@ -119,8 +123,7 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
                         const SizedBox(height: 2),
                         Text(
                           '${course.documentCount} docs · ${course.deckCount} decks · ${course.quizCount} quizzes',
-                          style:
-                              TextStyle(fontSize: 13, color: c.textMuted),
+                          style: TextStyle(fontSize: 13, color: c.textMuted),
                         ),
                       ],
                     ),
@@ -145,24 +148,18 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
   Widget _tabBody(BuildContext context, int tab, String courseId) {
     return switch (tab) {
       0 => _DocumentsTab(courseId: courseId),
-      1 => const EmptyState(
-          title: 'No decks yet',
-          subtitle:
-              'Generate flashcards from a document, or create a manual deck. Lands in Sprint 5.',
-          icon: Icons.style_outlined,
-        ),
+      1 => _DecksTab(courseId: courseId),
       2 => const EmptyState(
-          title: 'No quizzes yet',
-          subtitle:
-              'Generate practice exams from a document. Lands in Sprint 7.',
-          icon: Icons.quiz_outlined,
-        ),
+        title: 'No quizzes yet',
+        subtitle: 'Generate practice exams from a document. Lands in Sprint 7.',
+        icon: Icons.quiz_outlined,
+      ),
       _ => const EmptyState(
-          title: 'No podcasts yet',
-          subtitle:
-              'Two-speaker AI podcasts generated from your material. Lands in Sprint 10.',
-          icon: Icons.podcasts_outlined,
-        ),
+        title: 'No podcasts yet',
+        subtitle:
+            'Two-speaker AI podcasts generated from your material. Lands in Sprint 10.',
+        icon: Icons.podcasts_outlined,
+      ),
     };
   }
 
@@ -207,6 +204,68 @@ class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
   }
 }
 
+class _DecksTab extends ConsumerWidget {
+  const _DecksTab({required this.courseId});
+  final String courseId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final decksAsync = ref.watch(decksByCourseProvider(courseId));
+
+    return decksAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Text(
+          'Failed to load decks: $e',
+          style: TextStyle(color: context.colors.error),
+        ),
+      ),
+      data: (decks) {
+        if (decks.isEmpty) {
+          return EmptyState(
+            title: 'No decks yet',
+            subtitle:
+                'Generate flashcards from a document, or create a manual deck.',
+            icon: Icons.style_outlined,
+            actionLabel: 'New deck',
+            onAction: () => showDeckFormSheet(context, courseId: courseId),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: Spacing.sm),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: AppButton(
+                  label: 'New deck',
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.ghost,
+                  icon: Icons.add,
+                  onPressed: () =>
+                      showDeckFormSheet(context, courseId: courseId),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                itemCount: decks.length,
+                separatorBuilder: (_, _) => const SizedBox(height: Spacing.sm),
+                itemBuilder: (_, i) => DeckRow(
+                  deck: decks[i],
+                  onTap: () =>
+                      context.push('/library/$courseId/deck/${decks[i].id}'),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _SegmentedControl extends StatelessWidget {
   const _SegmentedControl({
     required this.tabs,
@@ -240,8 +299,9 @@ class _SegmentedControl extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: Spacing.sm),
                   decoration: BoxDecoration(
                     color: activeIndex == i ? c.accent : Colors.transparent,
-                    borderRadius:
-                        const BorderRadius.all(Radius.circular(Radii.sm)),
+                    borderRadius: const BorderRadius.all(
+                      Radius.circular(Radii.sm),
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -274,8 +334,10 @@ class _DocumentsTab extends ConsumerWidget {
     return docsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Text('Failed to load documents: $e',
-            style: TextStyle(color: context.colors.error)),
+        child: Text(
+          'Failed to load documents: $e',
+          style: TextStyle(color: context.colors.error),
+        ),
       ),
       data: (docs) {
         if (docs.isEmpty) {

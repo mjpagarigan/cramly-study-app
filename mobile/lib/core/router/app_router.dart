@@ -6,6 +6,8 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/splash_screen.dart';
 import '../../features/courses/screens/course_detail_screen.dart';
 import '../../features/courses/screens/library_screen.dart';
+import '../../features/decks/screens/deck_detail_screen.dart';
+import '../../features/decks/screens/deck_review_screen.dart';
 import '../../features/documents/screens/document_detail_screen.dart';
 import '../../features/documents/screens/upload_screen.dart';
 import '../../features/home/home_screen.dart';
@@ -59,51 +61,78 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _, navigationShell) =>
             MainShell(navigationShell: navigationShell),
         branches: [
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/library',
-              builder: (_, _) => const LibraryScreen(),
-              routes: [
-                GoRoute(
-                  path: ':id',
-                  builder: (_, state) => CourseDetailScreen(
-                    courseId: state.pathParameters['id']!,
-                  ),
-                  routes: [
-                    GoRoute(
-                      path: 'doc/:docId',
-                      builder: (_, state) => DocumentDetailScreen(
-                        documentId: state.pathParameters['docId']!,
-                      ),
-                      routes: [
-                        GoRoute(
-                          path: 'summary/:summaryId',
-                          builder: (_, state) => SummaryScreen(
-                            summaryId: state.pathParameters['summaryId']!,
-                          ),
-                        ),
-                      ],
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/library',
+                builder: (_, _) => const LibraryScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':id',
+                    builder: (_, state) => CourseDetailScreen(
+                      courseId: state.pathParameters['id']!,
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/study', builder: (_, _) => const StudyScreen()),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: '/progress',
-              builder: (_, _) => const ProgressScreen(),
-            ),
-          ]),
-          StatefulShellBranch(routes: [
-            GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
-          ]),
+                    routes: [
+                      GoRoute(
+                        path: 'deck/:deckId',
+                        builder: (_, state) => DeckDetailScreen(
+                          deckId: state.pathParameters['deckId']!,
+                        ),
+                        routes: [
+                          GoRoute(
+                            path: 'review',
+                            builder: (_, state) => DeckReviewScreen(
+                              deckId: state.pathParameters['deckId']!,
+                            ),
+                          ),
+                        ],
+                      ),
+                      GoRoute(
+                        path: 'doc/:docId',
+                        builder: (_, state) => DocumentDetailScreen(
+                          documentId: state.pathParameters['docId']!,
+                        ),
+                        routes: [
+                          GoRoute(
+                            path: 'summary/:summaryId',
+                            builder: (_, state) => SummaryScreen(
+                              summaryId: state.pathParameters['summaryId']!,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(path: '/study', builder: (_, _) => const StudyScreen()),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/progress',
+                builder: (_, _) => const ProgressScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (_, _) => const ProfileScreen(),
+              ),
+            ],
+          ),
         ],
       ),
     ],

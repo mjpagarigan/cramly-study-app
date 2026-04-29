@@ -26,6 +26,7 @@ configure_logging()
 logger = get_logger(__name__)
 
 from api.routers import courses as courses_router  # noqa: E402
+from api.routers import decks as decks_router  # noqa: E402
 from api.routers import documents as documents_router  # noqa: E402
 
 START_TIME = time.monotonic()
@@ -67,4 +68,5 @@ async def health() -> dict:
 
 
 app.include_router(courses_router.router)
+app.include_router(decks_router.router)
 app.include_router(documents_router.router)

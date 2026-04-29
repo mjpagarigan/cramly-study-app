@@ -12,6 +12,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from api.models.deck import DeckRead
 from api.models.job import JobRead
 from api.models.summary import SummaryDepth, SummaryRead
 
@@ -102,10 +103,18 @@ class DocumentRead(BaseModel):
 
 
 class DocumentGenerateRequest(BaseModel):
-    generator: Literal["summary"]
+    generator: Literal["summary", "flashcards"]
     depth: SummaryDepth = "detailed"
+    cardCount: int = Field(default=10, ge=4, le=20)
+
+    @model_validator(mode="after")
+    def _validate_generator_shape(self) -> "DocumentGenerateRequest":
+        if self.generator == "summary":
+            return self
+        return self
 
 
 class DocumentGenerateResponse(BaseModel):
     job: JobRead
-    summary: SummaryRead
+    summary: SummaryRead | None = None
+    deck: DeckRead | None = None

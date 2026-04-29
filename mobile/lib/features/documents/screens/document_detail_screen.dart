@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/bottom_sheet_shell.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../decks/providers/deck_providers.dart';
 import '../../summaries/data/summary_model.dart';
 import '../../summaries/providers/summary_providers.dart';
 import '../data/document_model.dart';
@@ -98,9 +99,9 @@ class DocumentDetailScreen extends ConsumerWidget {
       if (context.mounted) context.pop();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
       }
     }
   }
@@ -193,23 +194,27 @@ class _Header extends StatelessWidget {
   }
 
   static IconData _iconFor(DocumentSourceType t) => switch (t) {
-        DocumentSourceType.pdf => Icons.picture_as_pdf,
-        DocumentSourceType.docx => Icons.description,
-        DocumentSourceType.pptx => Icons.slideshow,
-        DocumentSourceType.markdown => Icons.notes,
-        DocumentSourceType.image => Icons.image,
-        DocumentSourceType.audio => Icons.mic,
-        DocumentSourceType.youtube => Icons.play_circle,
-        DocumentSourceType.webUrl => Icons.link,
-      };
+    DocumentSourceType.pdf => Icons.picture_as_pdf,
+    DocumentSourceType.docx => Icons.description,
+    DocumentSourceType.pptx => Icons.slideshow,
+    DocumentSourceType.markdown => Icons.notes,
+    DocumentSourceType.image => Icons.image,
+    DocumentSourceType.audio => Icons.mic,
+    DocumentSourceType.youtube => Icons.play_circle,
+    DocumentSourceType.webUrl => Icons.link,
+  };
 
   static Widget _statusBadgeFor(DocumentStatus s) => switch (s) {
-        DocumentStatus.ready =>
-          const AppBadge(label: 'Ready', color: AppBadgeColor.success),
-        DocumentStatus.failed =>
-          const AppBadge(label: 'Failed', color: AppBadgeColor.error),
-        _ => const AppBadge(label: 'Extracting', color: AppBadgeColor.secondary),
-      };
+    DocumentStatus.ready => const AppBadge(
+      label: 'Ready',
+      color: AppBadgeColor.success,
+    ),
+    DocumentStatus.failed => const AppBadge(
+      label: 'Failed',
+      color: AppBadgeColor.error,
+    ),
+    _ => const AppBadge(label: 'Extracting', color: AppBadgeColor.secondary),
+  };
 
   static String _meta(Document d) {
     final parts = <String>[];
@@ -233,23 +238,53 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
   @override
   Widget build(BuildContext context) {
     final document = widget.document;
+    final latestDeckId = document.generatedAssets.deckIds.isEmpty
+        ? null
+        : document.generatedAssets.deckIds.last;
     final latestSummaryId = document.generatedAssets.summaryIds.isEmpty
         ? null
         : document.generatedAssets.summaryIds.last;
+    final canGenerateFlashcards = document.status == DocumentStatus.ready;
     final canGenerateSummary = document.status == DocumentStatus.ready;
 
     return Wrap(
       spacing: Spacing.sm,
       runSpacing: Spacing.sm,
       children: [
-        const _DisabledAction(label: 'Flashcards', sprint: 5, icon: Icons.flash_on),
+        Tooltip(
+          message: canGenerateFlashcards
+              ? 'Generate a flashcard deck'
+              : document.status == DocumentStatus.failed
+              ? 'Fix extraction first'
+              : 'Wait for extraction to finish',
+          child: AppButton(
+            label: 'Flashcards',
+            icon: Icons.flash_on,
+            size: AppButtonSize.sm,
+            variant: AppButtonVariant.secondary,
+            busy: _busy,
+            onPressed: canGenerateFlashcards && !_busy
+                ? () => _generateFlashcards(document)
+                : null,
+          ),
+        ),
+        if (latestDeckId != null)
+          AppButton(
+            label: 'Latest deck',
+            icon: Icons.style_outlined,
+            size: AppButtonSize.sm,
+            variant: AppButtonVariant.ghost,
+            onPressed: () => context.push(
+              '/library/${document.courseId}/deck/$latestDeckId',
+            ),
+          ),
         const _DisabledAction(label: 'Quiz', sprint: 7, icon: Icons.quiz),
         Tooltip(
           message: canGenerateSummary
               ? 'Generate a markdown summary'
               : document.status == DocumentStatus.failed
-                  ? 'Fix extraction first'
-                  : 'Wait for extraction to finish',
+              ? 'Fix extraction first'
+              : 'Wait for extraction to finish',
           child: AppButton(
             label: 'Summary',
             icon: Icons.notes,
@@ -271,7 +306,11 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
               '/library/${document.courseId}/doc/${document.id}/summary/$latestSummaryId',
             ),
           ),
-        const _DisabledAction(label: 'Podcast', sprint: 10, icon: Icons.podcasts),
+        const _DisabledAction(
+          label: 'Podcast',
+          sprint: 10,
+          icon: Icons.podcasts,
+        ),
       ],
     );
   }
@@ -288,10 +327,9 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
 
     setState(() => _busy = true);
     try {
-      final result = await ref.read(summaryRepositoryProvider).generateSummary(
-            documentId: document.id,
-            depth: depth,
-          );
+      final result = await ref
+          .read(summaryRepositoryProvider)
+          .generateSummary(documentId: document.id, depth: depth);
       if (!mounted) return;
       context.push(
         '/library/${document.courseId}/doc/${document.id}/summary/${result.summary.id}',
@@ -300,6 +338,33 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to start summary generation: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _generateFlashcards(Document document) async {
+    final cardCount = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.bgElevated,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.sheetRadius),
+      builder: (_) => const _FlashcardCountSheet(),
+    );
+    if (cardCount == null || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await ref
+          .read(deckRepositoryProvider)
+          .generateDeck(documentId: document.id, cardCount: cardCount);
+      if (!mounted) return;
+      context.push('/library/${document.courseId}/deck/${result.deck.id}');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start flashcard generation: $e')),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -365,6 +430,102 @@ class _DepthOption extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   depth.description,
+                  style: TextStyle(fontSize: 13, color: c.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, size: 18, color: c.textMuted),
+        ],
+      ),
+    );
+  }
+}
+
+class _FlashcardCountSheet extends StatelessWidget {
+  const _FlashcardCountSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomSheetShell(
+      title: 'Choose deck size',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: const [
+          _CardCountOption(
+            count: 8,
+            title: 'Quick set',
+            subtitle: 'Fast pass over the biggest concepts.',
+          ),
+          SizedBox(height: Spacing.sm),
+          _CardCountOption(
+            count: 12,
+            title: 'Balanced set',
+            subtitle: 'Good default coverage for most documents.',
+          ),
+          SizedBox(height: Spacing.sm),
+          _CardCountOption(
+            count: 16,
+            title: 'Deeper set',
+            subtitle: 'More coverage when the material is dense.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CardCountOption extends StatelessWidget {
+  const _CardCountOption({
+    required this.count,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final int count;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return AppCard(
+      onTap: () => Navigator.of(context).pop(count),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: c.accentSubtle,
+              borderRadius: Radii.cardRadius,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: c.accent,
+              ),
+            ),
+          ),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: c.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
                   style: TextStyle(fontSize: 13, color: c.textMuted),
                 ),
               ],
@@ -451,7 +612,9 @@ class _ExtractedTextView extends ConsumerWidget {
       );
     }
 
-    final textAsync = ref.watch(extractedTextProvider(document.extractedTextPath!));
+    final textAsync = ref.watch(
+      extractedTextProvider(document.extractedTextPath!),
+    );
     return textAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Text(
@@ -460,10 +623,7 @@ class _ExtractedTextView extends ConsumerWidget {
       ),
       data: (text) {
         if (text == null || text.isEmpty) {
-          return Text(
-            '(empty)',
-            style: TextStyle(color: c.textMuted),
-          );
+          return Text('(empty)', style: TextStyle(color: c.textMuted));
         }
         return AppCard(
           padding: const EdgeInsets.all(Spacing.md),

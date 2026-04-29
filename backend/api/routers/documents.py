@@ -12,6 +12,7 @@ from api.models.document import (
     DocumentRead,
 )
 from api.services import documents as service
+from api.services import decks as decks_service
 from api.services import summaries as summaries_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -57,6 +58,18 @@ async def generate_from_document(
 ) -> DocumentGenerateResponse:
     document = service.get_document(uid, document_id)
     raw_document = service.get_document_snapshot(uid, document_id).to_dict() or {}
+    if payload.generator == "flashcards":
+        deck, job = decks_service.create_flashcards_job(
+            uid,
+            document_id,
+            course_id=document.courseId,
+            document_status=document.status,
+            document_title=document.title,
+            extraction_job_id=raw_document.get("extractionJobId"),
+            card_count=payload.cardCount,
+        )
+        return DocumentGenerateResponse(job=job.to_read(), deck=deck)
+
     summary, job = summaries_service.create_summary_job(
         uid,
         document_id,
