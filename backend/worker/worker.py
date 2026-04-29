@@ -46,11 +46,17 @@ def main() -> None:
 
     while not _shutdown_requested:
         now = time.monotonic()
-        if now - last_janitor_run >= settings.WORKER_HEARTBEAT_INTERVAL_SECONDS:
-            job_service.reset_stuck_jobs()
-            last_janitor_run = now
+        try:
+            if now - last_janitor_run >= settings.WORKER_HEARTBEAT_INTERVAL_SECONDS:
+                job_service.reset_stuck_jobs()
+                last_janitor_run = now
 
-        job = job_service.claim_next_job(worker_id)
+            job = job_service.claim_next_job(worker_id)
+        except Exception:  # noqa: BLE001
+            logger.exception("worker_firestore_loop_error", extra={"worker_id": worker_id})
+            time.sleep(settings.WORKER_POLL_INTERVAL_SECONDS)
+            continue
+
         if job is not None:
             try:
                 dispatch_job(job)

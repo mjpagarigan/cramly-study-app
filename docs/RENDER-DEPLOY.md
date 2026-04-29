@@ -43,7 +43,7 @@ firebase use cramly-cd9b5
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-If indexes are not deployed, the worker can fail when it tries to claim or recover jobs.
+If indexes are not deployed, the worker will fall back to a slower scan path and log a warning. Deploy the indexes anyway so queue claiming and stuck-job recovery use the intended indexed queries.
 
 ## Blueprint layout
 
@@ -206,6 +206,8 @@ Check:
 - `cramly-worker` logs for claim/retry/failure lines
 - Firestore indexes are deployed
 - `GROQ_API_KEY` exists on the worker service, not just the API service
+
+If you see `job_claim_query_fallback` or `stuck_job_query_fallback` in the worker logs, Render is running on the non-indexed fallback path and you should re-deploy Firestore indexes.
 
 Re-deploy indexes if needed:
 

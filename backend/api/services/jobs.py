@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from google.api_core import exceptions as gexc
 from google.cloud import firestore as gcf
 
 from api.models.job import JobRead, JobType
@@ -15,7 +16,9 @@ from shared.logging import get_logger
 logger = get_logger(__name__)
 
 CLAIM_BATCH_SIZE = 20
+CLAIM_FALLBACK_SCAN_SIZE = 100
 STUCK_JOB_BATCH_SIZE = 25
+STUCK_JOB_FALLBACK_SCAN_SIZE = 100
 RETRY_BASE_SECONDS = 15
 STUCK_JOB_TIMEOUT = timedelta(minutes=15)
 
@@ -121,16 +124,7 @@ def enqueue_job(
 
 
 def claim_next_job(worker_id: str) -> ClaimedJob | None:
-    db = get_db()
-    candidates = (
-        db.collection_group("asyncJobs")
-        .where(filter=gcf.FieldFilter("status", "==", "queued"))
-        .order_by("createdAt", direction=gcf.Query.ASCENDING)
-        .limit(CLAIM_BATCH_SIZE)
-        .stream()
-    )
-
-    for candidate in candidates:
+    for candidate in _stream_claim_candidates():
         claimed = _claim_candidate(candidate.reference, worker_id)
         if claimed is not None:
             logger.info(
@@ -235,18 +229,10 @@ def retry_or_fail_job(job: ClaimedJob, error_message: str) -> str:
 
 
 def reset_stuck_jobs() -> int:
-    db = get_db()
     cutoff = _utcnow() - STUCK_JOB_TIMEOUT
-    candidates = (
-        db.collection_group("asyncJobs")
-        .where(filter=gcf.FieldFilter("status", "==", "processing"))
-        .where(filter=gcf.FieldFilter("startedAt", "<=", cutoff))
-        .limit(STUCK_JOB_BATCH_SIZE)
-        .stream()
-    )
 
     recovered = 0
-    for candidate in candidates:
+    for candidate in _stream_stuck_job_candidates(cutoff):
         if _reset_stuck_candidate(candidate.reference, cutoff):
             recovered += 1
 
@@ -320,6 +306,71 @@ def _claim_candidate(
     return _from_data(reference, result)
 
 
+def _stream_claim_candidates():
+    db = get_db()
+    preferred_query = (
+        db.collection_group("asyncJobs")
+        .where(filter=gcf.FieldFilter("status", "==", "queued"))
+        .order_by("createdAt", direction=gcf.Query.ASCENDING)
+        .limit(CLAIM_BATCH_SIZE)
+    )
+
+    try:
+        for candidate in preferred_query.stream():
+            yield candidate
+        return
+    except (gexc.FailedPrecondition, gexc.InvalidArgument) as exc:
+        logger.warning(
+            "job_claim_query_fallback",
+            extra={"error": str(exc)},
+        )
+
+    fallback_candidates = list(
+        db.collection_group("asyncJobs")
+        .where(filter=gcf.FieldFilter("status", "==", "queued"))
+        .limit(CLAIM_FALLBACK_SCAN_SIZE)
+        .stream()
+    )
+    fallback_candidates.sort(key=lambda snap: _dt_sort_key((snap.to_dict() or {}).get("createdAt")))
+    for candidate in fallback_candidates[:CLAIM_BATCH_SIZE]:
+        yield candidate
+
+
+def _stream_stuck_job_candidates(cutoff: datetime):
+    db = get_db()
+    preferred_query = (
+        db.collection_group("asyncJobs")
+        .where(filter=gcf.FieldFilter("status", "==", "processing"))
+        .where(filter=gcf.FieldFilter("startedAt", "<=", cutoff))
+        .limit(STUCK_JOB_BATCH_SIZE)
+    )
+
+    try:
+        for candidate in preferred_query.stream():
+            yield candidate
+        return
+    except (gexc.FailedPrecondition, gexc.InvalidArgument) as exc:
+        logger.warning(
+            "stuck_job_query_fallback",
+            extra={"error": str(exc)},
+        )
+
+    fallback_candidates = list(
+        db.collection_group("asyncJobs")
+        .where(filter=gcf.FieldFilter("status", "==", "processing"))
+        .limit(STUCK_JOB_FALLBACK_SCAN_SIZE)
+        .stream()
+    )
+    fallback_candidates = [
+        candidate
+        for candidate in fallback_candidates
+        if (_to_dt((candidate.to_dict() or {}).get("startedAt")) or _utcnow()) <= cutoff
+    ]
+    fallback_candidates.sort(key=lambda snap: _dt_sort_key((snap.to_dict() or {}).get("startedAt")))
+    for candidate in fallback_candidates[:STUCK_JOB_BATCH_SIZE]:
+        yield candidate
+
+
 def _reset_stuck_candidate(reference: gcf.DocumentReference, cutoff: datetime) -> bool:
     db = get_db()
     transaction = db.transaction()
@@ -381,6 +432,10 @@ def _from_data(reference: gcf.DocumentReference, data: dict[str, Any]) -> Claime
 def _clean_error(error_message: str) -> str:
     cleaned = " ".join(error_message.split())
     return cleaned[:1000] if len(cleaned) > 1000 else cleaned
+
+
+def _dt_sort_key(value) -> datetime:
+    return _to_dt(value) or datetime.max.replace(tzinfo=timezone.utc)
 
 
 def _to_dt(value) -> datetime | None:
