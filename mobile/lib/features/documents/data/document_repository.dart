@@ -36,9 +36,16 @@ class DocumentRepository {
         .collection('documents');
   }
 
+  CollectionReference<Map<String, dynamic>> _collectionForUser(String uid) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('documents');
+  }
+
   /// Stream of all documents for one course, ordered newest first.
-  Stream<List<Document>> watchByCourse(String courseId) {
-    return _collection()
+  Stream<List<Document>> watchByCourse(String uid, String courseId) {
+    return _collectionForUser(uid)
         .where('courseId', isEqualTo: courseId)
         .orderBy('uploadedAt', descending: true)
         .snapshots()
@@ -46,8 +53,8 @@ class DocumentRepository {
   }
 
   /// Watches a single doc — used by the upload flow to flip from extracting → ready.
-  Stream<Document?> watchById(String documentId) {
-    return _collection().doc(documentId).snapshots().map((snap) {
+  Stream<Document?> watchById(String uid, String documentId) {
+    return _collectionForUser(uid).doc(documentId).snapshots().map((snap) {
       if (!snap.exists) return null;
       return Document.fromFirestore(snap);
     });

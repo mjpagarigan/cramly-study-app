@@ -2,9 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-/// Streams Firebase auth state. The router and any auth-aware widget watch this.
+/// Streams Firebase auth + ID token state.
+///
+/// `idTokenChanges()` is a little more conservative than `authStateChanges()`
+/// and ensures dependents recreate when Firebase refreshes the current user's
+/// token after provider sign-in.
 final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseAuth.instance.authStateChanges();
+  return FirebaseAuth.instance.idTokenChanges();
 });
 
 /// Synchronous accessor for the current user — null when signed out.
@@ -38,6 +42,7 @@ class AuthController {
       idToken: googleAuth.idToken,
     );
     await _auth.signInWithCredential(credential);
+    await _auth.currentUser?.getIdToken(true);
   }
 
   Future<void> signOut() async {

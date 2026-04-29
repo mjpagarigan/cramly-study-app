@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/api/api_client.dart';
 import '../data/course_model.dart';
 import '../data/course_repository.dart';
@@ -10,7 +11,11 @@ final courseRepositoryProvider = Provider<CourseRepository>((ref) {
 
 /// Real-time list of the signed-in user's courses, ordered by `updatedAt desc`.
 final coursesStreamProvider = StreamProvider<List<Course>>((ref) {
-  return ref.watch(courseRepositoryProvider).watchCourses();
+  final user = ref.watch(currentUserProvider);
+  if (user == null) {
+    return Stream<List<Course>>.empty();
+  }
+  return ref.watch(courseRepositoryProvider).watchCourses(user.uid);
 });
 
 /// Picks a single course out of the stream by id (used by the detail screen).

@@ -1,16 +1,18 @@
-"""Document endpoints — spec §8 Documents.
-
-Sprint 3 ships POST/GET/DELETE. The mobile client primarily reads via Firestore
-listeners; GET endpoints are here for completeness + admin/debugging tools.
-"""
+"""Document endpoints per the app specification."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from api.deps import get_current_user
-from api.models.document import DocumentCreate, DocumentRead
+from api.models.document import (
+    DocumentCreate,
+    DocumentGenerateRequest,
+    DocumentGenerateResponse,
+    DocumentRead,
+)
 from api.services import documents as service
+from api.services import summaries as summaries_service
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -41,6 +43,29 @@ async def create_document(
     uid: str = Depends(get_current_user),
 ) -> DocumentRead:
     return service.create_document(uid, payload)
+
+
+@router.post(
+    "/{document_id}/generate",
+    response_model=DocumentGenerateResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def generate_from_document(
+    document_id: str,
+    payload: DocumentGenerateRequest,
+    uid: str = Depends(get_current_user),
+) -> DocumentGenerateResponse:
+    document = service.get_document(uid, document_id)
+    raw_document = service.get_document_snapshot(uid, document_id).to_dict() or {}
+    summary, job = summaries_service.create_summary_job(
+        uid,
+        document_id,
+        course_id=document.courseId,
+        document_status=document.status,
+        extraction_job_id=raw_document.get("extractionJobId"),
+        depth=payload.depth,
+    )
+    return DocumentGenerateResponse(job=job.to_read(), summary=summary)
 
 
 @router.delete(

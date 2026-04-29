@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/api/api_client.dart';
 import 'course_model.dart';
@@ -12,19 +11,15 @@ class CourseRepository {
 
   final ApiClient _api;
 
-  CollectionReference<Map<String, dynamic>> _coursesCollection() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) {
-      throw StateError('CourseRepository requires a signed-in user');
-    }
+  CollectionReference<Map<String, dynamic>> _coursesCollection(String uid) {
     return FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .collection('courses');
   }
 
-  Stream<List<Course>> watchCourses() {
-    return _coursesCollection()
+  Stream<List<Course>> watchCourses(String uid) {
+    return _coursesCollection(uid)
         .orderBy('updatedAt', descending: true)
         .snapshots()
         .map((snap) => snap.docs.map(Course.fromFirestore).toList());

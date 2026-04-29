@@ -325,6 +325,9 @@ If everything above works, your local environment is correct.
 
 ## 8. Deploy to Render (when ready)
 
+The current Render deployment walkthrough now lives in [RENDER-DEPLOY.md](./RENDER-DEPLOY.md).
+Use that guide as the source of truth for the API + worker Blueprint, required production secrets, verification steps, and the native-runtime OCR limitation.
+
 **Don't do this until Sprint 11/12** — there's no point spending $25/mo until you have a TestFlight/Play build to demo.
 
 ### 8.1 Account setup
@@ -351,10 +354,9 @@ The repo includes [render.yaml](../render.yaml) which provisions both services a
 For **each** service (`cramly-api` AND `cramly-worker`):
 
 1. Click into the service → **Environment** tab.
-2. Add three secret env vars (mark each as **Secret**):
+2. Add two secret env vars (mark each as **Secret**):
    - `FIREBASE_SERVICE_ACCOUNT_JSON` = (paste the same single-line JSON you put in `.env`)
    - `GROQ_API_KEY` = `gsk_...`
-   - `ELEVENLABS_API_KEY` = `...`
 3. Click **Save Changes** → triggers a redeploy.
 
 ### 8.5 Verify

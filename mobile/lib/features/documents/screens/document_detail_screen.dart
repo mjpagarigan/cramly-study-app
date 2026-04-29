@@ -7,7 +7,10 @@ import '../../../core/theme/tokens.dart';
 import '../../../shared/widgets/app_badge.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/bottom_sheet_shell.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../summaries/data/summary_model.dart';
+import '../../summaries/providers/summary_providers.dart';
 import '../data/document_model.dart';
 import '../providers/document_providers.dart';
 
@@ -43,8 +46,11 @@ class DocumentDetailScreen extends ConsumerWidget {
       body: docAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
-          child: Text('Failed to load document\n$e',
-              textAlign: TextAlign.center, style: TextStyle(color: c.error)),
+          child: Text(
+            'Failed to load document\n$e',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: c.error),
+          ),
         ),
         data: (doc) {
           if (doc == null) {
@@ -146,8 +152,7 @@ class _Header extends StatelessWidget {
             borderRadius: Radii.cardRadius,
           ),
           alignment: Alignment.center,
-          child: Icon(_iconFor(document.sourceType),
-              color: c.accent, size: 22),
+          child: Icon(_iconFor(document.sourceType), color: c.accent, size: 22),
         ),
         const SizedBox(width: Spacing.md),
         Expanded(
@@ -214,23 +219,160 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _GenerateActions extends StatelessWidget {
+class _GenerateActions extends ConsumerStatefulWidget {
   const _GenerateActions({required this.document});
   final Document document;
 
   @override
+  ConsumerState<_GenerateActions> createState() => _GenerateActionsState();
+}
+
+class _GenerateActionsState extends ConsumerState<_GenerateActions> {
+  bool _busy = false;
+
+  @override
   Widget build(BuildContext context) {
-    // Disabled for Sprint 3 — generators land in Sprints 5/7/9/10. Placeholder
-    // surfaces the eventual UI so the user can see what's coming.
+    final document = widget.document;
+    final latestSummaryId = document.generatedAssets.summaryIds.isEmpty
+        ? null
+        : document.generatedAssets.summaryIds.last;
+    final canGenerateSummary = document.status == DocumentStatus.ready;
+
     return Wrap(
       spacing: Spacing.sm,
       runSpacing: Spacing.sm,
-      children: const [
-        _DisabledAction(label: 'Flashcards', sprint: 5, icon: Icons.flash_on),
-        _DisabledAction(label: 'Quiz', sprint: 7, icon: Icons.quiz),
-        _DisabledAction(label: 'Summary', sprint: 9, icon: Icons.notes),
-        _DisabledAction(label: 'Podcast', sprint: 10, icon: Icons.podcasts),
+      children: [
+        const _DisabledAction(label: 'Flashcards', sprint: 5, icon: Icons.flash_on),
+        const _DisabledAction(label: 'Quiz', sprint: 7, icon: Icons.quiz),
+        Tooltip(
+          message: canGenerateSummary
+              ? 'Generate a markdown summary'
+              : document.status == DocumentStatus.failed
+                  ? 'Fix extraction first'
+                  : 'Wait for extraction to finish',
+          child: AppButton(
+            label: 'Summary',
+            icon: Icons.notes,
+            size: AppButtonSize.sm,
+            variant: AppButtonVariant.secondary,
+            busy: _busy,
+            onPressed: canGenerateSummary && !_busy
+                ? () => _generateSummary(document)
+                : null,
+          ),
+        ),
+        if (latestSummaryId != null)
+          AppButton(
+            label: 'Latest summary',
+            icon: Icons.auto_stories,
+            size: AppButtonSize.sm,
+            variant: AppButtonVariant.ghost,
+            onPressed: () => context.push(
+              '/library/${document.courseId}/doc/${document.id}/summary/$latestSummaryId',
+            ),
+          ),
+        const _DisabledAction(label: 'Podcast', sprint: 10, icon: Icons.podcasts),
       ],
+    );
+  }
+
+  Future<void> _generateSummary(Document document) async {
+    final depth = await showModalBottomSheet<SummaryDepth>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.bgElevated,
+      shape: const RoundedRectangleBorder(borderRadius: Radii.sheetRadius),
+      builder: (_) => const _SummaryDepthSheet(),
+    );
+    if (depth == null || !mounted) return;
+
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(summaryRepositoryProvider).generateSummary(
+            documentId: document.id,
+            depth: depth,
+          );
+      if (!mounted) return;
+      context.push(
+        '/library/${document.courseId}/doc/${document.id}/summary/${result.summary.id}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start summary generation: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+class _SummaryDepthSheet extends StatelessWidget {
+  const _SummaryDepthSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomSheetShell(
+      title: 'Choose summary depth',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final depth in SummaryDepth.values) ...[
+            _DepthOption(depth: depth),
+            if (depth != SummaryDepth.values.last)
+              const SizedBox(height: Spacing.sm),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DepthOption extends StatelessWidget {
+  const _DepthOption({required this.depth});
+  final SummaryDepth depth;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return AppCard(
+      onTap: () => Navigator.of(context).pop(depth),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: c.accentSubtle,
+              borderRadius: Radii.cardRadius,
+            ),
+            alignment: Alignment.center,
+            child: Icon(Icons.notes, color: c.accent, size: 18),
+          ),
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  depth.label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: c.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  depth.description,
+                  style: TextStyle(fontSize: 13, color: c.textMuted),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right, size: 18, color: c.textMuted),
+        ],
+      ),
     );
   }
 }
@@ -254,7 +396,6 @@ class _DisabledAction extends StatelessWidget {
         icon: icon,
         size: AppButtonSize.sm,
         variant: AppButtonVariant.secondary,
-        // Disabled — onPressed null shows the disabled style.
         onPressed: null,
       ),
     );

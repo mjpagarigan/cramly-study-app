@@ -25,6 +25,14 @@
       ]
     },
     {
+      "collectionGroup": "asyncJobs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "startedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "topics",
       "queryScope": "COLLECTION",
       "fields": [

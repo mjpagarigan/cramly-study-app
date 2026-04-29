@@ -12,6 +12,9 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from api.models.job import JobRead
+from api.models.summary import SummaryDepth, SummaryRead
+
 SourceType = Literal[
     "pdf", "docx", "pptx", "markdown", "image", "audio", "youtube", "web_url"
 ]
@@ -96,3 +99,13 @@ class DocumentRead(BaseModel):
     generatedAssets: GeneratedAssets = Field(default_factory=GeneratedAssets)
     uploadedAt: Optional[datetime] = None
     extractedAt: Optional[datetime] = None
+
+
+class DocumentGenerateRequest(BaseModel):
+    generator: Literal["summary"]
+    depth: SummaryDepth = "detailed"
+
+
+class DocumentGenerateResponse(BaseModel):
+    job: JobRead
+    summary: SummaryRead

@@ -1,12 +1,4 @@
-"""Document orchestration: register → extract → store.
-
-Sprint 3 runs extraction synchronously inside the request handler. Small files
-(a 10-page PDF, a 30-min YouTube transcript) finish in 1-3s — acceptable to
-block. Large files (a 25 MB audio, a 200-page PDF) can take 30s+ and should
-become async jobs in Sprint 4.
-
-# TODO(sprint-4): move extraction to a `text_extraction` async job per spec §7.
-"""
+"""Document orchestration: register docs and queue extraction jobs."""
 
 from __future__ import annotations
 
@@ -22,10 +14,10 @@ from api.models.document import (
     FILE_SOURCES,
     DocumentCreate,
     DocumentRead,
-    DocumentStatus,
     GeneratedAssets,
     SourceType,
 )
+from api.services import jobs as job_service
 from api.services.extraction import (
     ExtractionError,
     ExtractionResult,
@@ -44,15 +36,20 @@ from shared.logging import get_logger
 logger = get_logger(__name__)
 
 
-# --- Firestore helpers ---------------------------------------------------------
-
-
-def _docs_collection(uid: str) -> gcf.CollectionReference:
+def docs_collection(uid: str) -> gcf.CollectionReference:
     return get_db().collection("users").document(uid).collection("documents")
 
 
-def _course_ref(uid: str, course_id: str) -> gcf.DocumentReference:
+def course_ref(uid: str, course_id: str) -> gcf.DocumentReference:
     return get_db().collection("users").document(uid).collection("courses").document(course_id)
+
+
+def document_ref(uid: str, doc_id: str) -> gcf.DocumentReference:
+    return docs_collection(uid).document(doc_id)
+
+
+def get_document_snapshot(uid: str, doc_id: str) -> gcf.DocumentSnapshot:
+    return document_ref(uid, doc_id).get()
 
 
 def _to_dt(value) -> Optional[datetime]:
@@ -86,11 +83,8 @@ def _to_read(snap: gcf.DocumentSnapshot) -> DocumentRead:
     )
 
 
-# --- Public API ----------------------------------------------------------------
-
-
 def list_documents(uid: str, course_id: Optional[str] = None) -> list[DocumentRead]:
-    query: gcf.Query = _docs_collection(uid)
+    query: gcf.Query = docs_collection(uid)
     if course_id:
         query = query.where(filter=gcf.FieldFilter("courseId", "==", course_id))
     query = query.order_by("uploadedAt", direction=gcf.Query.DESCENDING)
@@ -98,22 +92,15 @@ def list_documents(uid: str, course_id: Optional[str] = None) -> list[DocumentRe
 
 
 def get_document(uid: str, doc_id: str) -> DocumentRead:
-    snap = _docs_collection(uid).document(doc_id).get()
+    snap = get_document_snapshot(uid, doc_id)
     if not snap.exists:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
     return _to_read(snap)
 
 
 def create_document(uid: str, payload: DocumentCreate) -> DocumentRead:
-    """Register the doc, run extraction synchronously, return final state.
-
-    Sprint 4 will split this into:
-      1. POST /documents → register + enqueue `text_extraction` job, return immediately
-      2. worker picks up job, extracts, updates doc
-    For now everything happens in one HTTP request.
-    """
-    # Verify the course exists and belongs to the user.
-    course_snap = _course_ref(uid, payload.courseId).get()
+    """Register the doc, enqueue extraction, and return immediately."""
+    course_snap = course_ref(uid, payload.courseId).get()
     if not course_snap.exists:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -122,8 +109,8 @@ def create_document(uid: str, payload: DocumentCreate) -> DocumentRead:
 
     title = payload.title or _derive_title(payload)
 
-    doc_ref = _docs_collection(uid).document()
-    doc_ref.set({
+    ref = docs_collection(uid).document()
+    ref.set({
         "courseId": payload.courseId,
         "sourceType": payload.sourceType,
         "title": title,
@@ -140,73 +127,56 @@ def create_document(uid: str, payload: DocumentCreate) -> DocumentRead:
         "generatedAssets": GeneratedAssets().model_dump(),
         "uploadedAt": gcf.SERVER_TIMESTAMP,
         "extractedAt": None,
+        "customTitle": bool(payload.title),
+        "extractionJobId": None,
     })
     logger.info(
         "document_created",
-        extra={"uid": uid, "doc_id": doc_ref.id, "source_type": payload.sourceType},
+        extra={"uid": uid, "doc_id": ref.id, "source_type": payload.sourceType},
     )
 
-    # --- Extraction (the blocking part) -------------------------------------
     try:
-        result, derived_title = _run_extraction(uid, doc_ref.id, payload)
-        extracted_path = _upload_extracted_text(uid, doc_ref.id, result.text)
-
-        updates = {
-            "status": "ready",
-            "wordCount": result.word_count,
-            "pageCount": result.page_count,
-            "extractedTextPath": extracted_path,
-            "extractedAt": gcf.SERVER_TIMESTAMP,
-        }
-        # Title from extraction (e.g. web article <title>) wins if user didn't pick one.
-        if derived_title and not payload.title:
-            updates["title"] = derived_title
-
-        doc_ref.update(updates)
-
-        # Bump parent course's documentCount.
-        _course_ref(uid, payload.courseId).update({
+        course_ref(uid, payload.courseId).update({
             "documentCount": gcf.Increment(1),
             "updatedAt": gcf.SERVER_TIMESTAMP,
         })
-
-        logger.info(
-            "document_extracted",
-            extra={
-                "uid": uid,
-                "doc_id": doc_ref.id,
-                "word_count": result.word_count,
-                "page_count": result.page_count,
-            },
+        job = job_service.enqueue_job(
+            uid,
+            "text_extraction",
+            {"documentId": ref.id},
+            output_refs={"documentId": ref.id},
         )
-    except ExtractionError as exc:
-        doc_ref.update({"status": "failed", "errorMessage": str(exc)})
-        logger.warning(
-            "document_extraction_failed",
-            extra={"uid": uid, "doc_id": doc_ref.id, "error": str(exc)},
+        ref.update({"extractionJobId": job.id})
+        logger.info(
+            "document_queued_for_extraction",
+            extra={"uid": uid, "doc_id": ref.id, "job_id": job.id},
         )
     except Exception as exc:  # noqa: BLE001
-        # Unknown failure — record so the user can see something happened, then re-raise.
-        doc_ref.update({"status": "failed", "errorMessage": f"Internal error: {exc}"})
+        ref.update({
+            "status": "failed",
+            "errorMessage": f"Failed to enqueue extraction job: {exc}",
+        })
         logger.error(
-            "document_extraction_unexpected",
-            extra={"uid": uid, "doc_id": doc_ref.id, "error": str(exc)},
+            "document_enqueue_failed",
+            extra={"uid": uid, "doc_id": ref.id, "error": str(exc)},
         )
-        raise
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "Failed to queue document extraction",
+        ) from exc
 
-    return _to_read(doc_ref.get())
+    return _to_read(ref.get())
 
 
 def delete_document(uid: str, doc_id: str) -> None:
-    doc_ref = _docs_collection(uid).document(doc_id)
-    snap = doc_ref.get()
+    ref = document_ref(uid, doc_id)
+    snap = ref.get()
     if not snap.exists:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
 
     data = snap.to_dict() or {}
     course_id = data.get("courseId")
 
-    # Best-effort cleanup of Storage objects. Failures are logged, not fatal.
     bucket = get_bucket()
     for path in (data.get("storagePath"), data.get("extractedTextPath")):
         if not path:
@@ -219,12 +189,11 @@ def delete_document(uid: str, doc_id: str) -> None:
                 extra={"path": path, "error": str(exc)},
             )
 
-    doc_ref.delete()
+    ref.delete()
 
-    # Decrement parent course's documentCount.
     if course_id:
         try:
-            _course_ref(uid, course_id).update({
+            course_ref(uid, course_id).update({
                 "documentCount": gcf.Increment(-1),
                 "updatedAt": gcf.SERVER_TIMESTAMP,
             })
@@ -234,29 +203,20 @@ def delete_document(uid: str, doc_id: str) -> None:
                 extra={"course_id": course_id, "error": str(exc)},
             )
 
-    # TODO(sprint-5+): cascade-delete generatedAssets (decks, quizzes, etc.)
     logger.info("document_deleted", extra={"uid": uid, "doc_id": doc_id})
 
 
-# --- Internals ----------------------------------------------------------------
-
-
 def _derive_title(payload: DocumentCreate) -> str:
-    """Best-effort title before extraction. Web URL extractor may overwrite later."""
     if payload.fileName:
         return os.path.splitext(payload.fileName)[0]
     if payload.sourceType == "youtube":
-        return f"YouTube — {payload.sourceUrl}"
+        return f"YouTube - {payload.sourceUrl}"
     if payload.sourceType == "web_url":
         return payload.sourceUrl or "Web article"
     return "Untitled"
 
 
-def _run_extraction(
-    uid: str,
-    doc_id: str,
-    payload: DocumentCreate,
-) -> tuple[ExtractionResult, str | None]:
+def run_extraction(payload: DocumentCreate) -> tuple[ExtractionResult, str | None]:
     """Returns (result, optional_derived_title)."""
     if payload.sourceType in FILE_SOURCES:
         if not payload.storagePath:
@@ -309,14 +269,17 @@ def _download_to_temp(storage_path: str, file_name: Optional[str]) -> str:
     return temp_path
 
 
-def _upload_extracted_text(uid: str, doc_id: str, text: str) -> str:
-    """Writes extracted text to Storage, returns the storage path.
-
-    Storage layout per spec §6:
-        /users/{uid}/documents/{doc_id}/extracted.txt
-    """
+def upload_extracted_text(uid: str, doc_id: str, text: str) -> str:
     path = f"users/{uid}/documents/{doc_id}/extracted.txt"
     bucket = get_bucket()
     blob = bucket.blob(path)
     blob.upload_from_string(text, content_type="text/plain; charset=utf-8")
     return path
+
+
+def download_extracted_text(path: str) -> str:
+    bucket = get_bucket()
+    blob = bucket.blob(path)
+    if not blob.exists():
+        raise ExtractionError(f"Extracted text not found in Storage: {path}")
+    return blob.download_as_text(encoding="utf-8")

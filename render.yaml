@@ -1,25 +1,24 @@
-# Cramly — Render blueprint.
-# Two services from a single repo: FastAPI web service + Python background worker.
-# Region: singapore (closest to asia-southeast1 Firebase region).
-#
-# After first push:
-#   1. Connect repo on Render
-#   2. Render auto-detects this file and creates both services
-#   3. Set the env vars marked `sync: false` in the dashboard for each service
+# Cramly - Render blueprint.
+# Native Python deployment for the current Sprint 4 backend:
+# - `cramly-api` serves FastAPI
+# - `cramly-worker` processes async jobs
+# Known limitation: image OCR is not production-ready on native Render because
+# the repo's Tesseract-based extractor expects a host binary. See
+# docs/RENDER-DEPLOY.md for the full setup guide and caveats.
 
 services:
-  # --- FastAPI service ---
   - type: web
     name: cramly-api
     runtime: python
     region: singapore
-    plan: starter   # bump to standard/pro after MVP launch
+    plan: starter
     rootDir: backend
     pythonVersion: "3.11"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
-    autoDeploy: true
+    maxShutdownDelaySeconds: 30
+    autoDeployTrigger: commit
     envVars:
       - key: ENV
         value: production
@@ -33,15 +32,11 @@ services:
         value: cramly-cd9b5.firebasestorage.app
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
-      # Secrets — set in Render dashboard, do not commit
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      - key: ELEVENLABS_API_KEY
-        sync: false
 
-  # --- Background worker ---
   - type: worker
     name: cramly-worker
     runtime: python
@@ -51,7 +46,8 @@ services:
     pythonVersion: "3.11"
     buildCommand: pip install -r requirements.txt
     startCommand: python -m worker.worker
-    autoDeploy: true
+    maxShutdownDelaySeconds: 120
+    autoDeployTrigger: commit
     envVars:
       - key: ENV
         value: production
@@ -69,10 +65,7 @@ services:
         value: "2"
       - key: WORKER_HEARTBEAT_INTERVAL_SECONDS
         value: "30"
-      # Secrets — set in Render dashboard
       - key: FIREBASE_SERVICE_ACCOUNT_JSON
         sync: false
       - key: GROQ_API_KEY
-        sync: false
-      - key: ELEVENLABS_API_KEY
         sync: false

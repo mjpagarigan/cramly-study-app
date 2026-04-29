@@ -12,6 +12,7 @@ import '../../features/home/home_screen.dart';
 import '../../features/profile/profile_screen.dart';
 import '../../features/progress/progress_screen.dart';
 import '../../features/study/study_screen.dart';
+import '../../features/summaries/screens/summary_screen.dart';
 import '../../shared/widgets/main_shell.dart';
 import '../auth/auth_providers.dart';
 
@@ -77,6 +78,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                       builder: (_, state) => DocumentDetailScreen(
                         documentId: state.pathParameters['docId']!,
                       ),
+                      routes: [
+                        GoRoute(
+                          path: 'summary/:summaryId',
+                          builder: (_, state) => SummaryScreen(
+                            summaryId: state.pathParameters['summaryId']!,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

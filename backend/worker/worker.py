@@ -1,14 +1,4 @@
-"""Cramly background worker entrypoint.
-
-Sprint 1: empty heartbeat loop just to prove the second Render service
-runs. Sprint 4 replaces this with the real job claim + dispatch loop.
-
-Run from the `backend/` directory:
-    python -m worker.worker
-
-In production (Render Background Worker), `rootDir: backend` handles the cwd:
-    python -m worker.worker
-"""
+"""Cramly background worker entrypoint."""
 
 from __future__ import annotations
 
@@ -20,8 +10,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from api.services import jobs as job_service  # noqa: E402
 from shared.config import settings  # noqa: E402
 from shared.logging import configure_logging, get_logger  # noqa: E402
+from worker.jobs.handlers import dispatch_job, mark_job_failure  # noqa: E402
 
 configure_logging()
 logger = get_logger(__name__)
@@ -50,12 +42,32 @@ def main() -> None:
     signal.signal(signal.SIGINT, _request_shutdown)
 
     last_heartbeat = 0.0
+    last_janitor_run = 0.0
+
     while not _shutdown_requested:
-        # TODO(sprint-4): claim and dispatch jobs from asyncJobs collection
         now = time.monotonic()
+        if now - last_janitor_run >= settings.WORKER_HEARTBEAT_INTERVAL_SECONDS:
+            job_service.reset_stuck_jobs()
+            last_janitor_run = now
+
+        job = job_service.claim_next_job(worker_id)
+        if job is not None:
+            try:
+                dispatch_job(job)
+            except job_service.UnrecoverableJobError as exc:
+                mark_job_failure(job, str(exc), final_failure=True)
+                job_service.fail_job(job, str(exc))
+            except Exception as exc:  # noqa: BLE001
+                error_message = f"{type(exc).__name__}: {exc}"
+                final_failure = job.attempt_count >= job.max_attempts
+                mark_job_failure(job, error_message, final_failure=final_failure)
+                job_service.retry_or_fail_job(job, error_message)
+            continue
+
         if now - last_heartbeat >= settings.WORKER_HEARTBEAT_INTERVAL_SECONDS:
             logger.info("worker_heartbeat", extra={"worker_id": worker_id})
             last_heartbeat = now
+
         time.sleep(settings.WORKER_POLL_INTERVAL_SECONDS)
 
     logger.info("worker_stopped", extra={"worker_id": worker_id})
