@@ -21,6 +21,10 @@ STUCK_JOB_BATCH_SIZE = 25
 STUCK_JOB_FALLBACK_SCAN_SIZE = 100
 RETRY_BASE_SECONDS = 15
 STUCK_JOB_TIMEOUT = timedelta(minutes=15)
+_fallback_query_active: dict[str, bool] = {
+    "claim": False,
+    "stuck": False,
+}
 
 
 class UnrecoverableJobError(RuntimeError):
@@ -317,13 +321,11 @@ def _stream_claim_candidates():
 
     try:
         for candidate in preferred_query.stream():
+            _mark_query_recovered("claim")
             yield candidate
         return
     except (gexc.FailedPrecondition, gexc.InvalidArgument) as exc:
-        logger.warning(
-            "job_claim_query_fallback",
-            extra={"error": str(exc)},
-        )
+        _mark_query_fallback("claim", "job_claim_query_fallback", str(exc))
 
     fallback_candidates = [
         candidate
@@ -346,13 +348,11 @@ def _stream_stuck_job_candidates(cutoff: datetime):
 
     try:
         for candidate in preferred_query.stream():
+            _mark_query_recovered("stuck")
             yield candidate
         return
     except (gexc.FailedPrecondition, gexc.InvalidArgument) as exc:
-        logger.warning(
-            "stuck_job_query_fallback",
-            extra={"error": str(exc)},
-        )
+        _mark_query_fallback("stuck", "stuck_job_query_fallback", str(exc))
 
     fallback_candidates = [
         candidate
@@ -434,6 +434,20 @@ def _clean_error(error_message: str) -> str:
 
 def _dt_sort_key(value) -> datetime:
     return _to_dt(value) or datetime.max.replace(tzinfo=timezone.utc)
+
+
+def _mark_query_fallback(kind: str, message: str, error: str) -> None:
+    if _fallback_query_active.get(kind):
+        return
+    _fallback_query_active[kind] = True
+    logger.warning(message, extra={"error": error})
+
+
+def _mark_query_recovered(kind: str) -> None:
+    if not _fallback_query_active.get(kind):
+        return
+    _fallback_query_active[kind] = False
+    logger.info("job_query_index_ready", extra={"query_kind": kind})
 
 
 def _to_dt(value) -> datetime | None:
