@@ -325,12 +325,11 @@ def _stream_claim_candidates():
             extra={"error": str(exc)},
         )
 
-    fallback_candidates = list(
-        db.collection_group("asyncJobs")
-        .where(filter=gcf.FieldFilter("status", "==", "queued"))
-        .limit(CLAIM_FALLBACK_SCAN_SIZE)
-        .stream()
-    )
+    fallback_candidates = [
+        candidate
+        for candidate in db.collection_group("asyncJobs").limit(CLAIM_FALLBACK_SCAN_SIZE).stream()
+        if (candidate.to_dict() or {}).get("status") == "queued"
+    ]
     fallback_candidates.sort(key=lambda snap: _dt_sort_key((snap.to_dict() or {}).get("createdAt")))
     for candidate in fallback_candidates[:CLAIM_BATCH_SIZE]:
         yield candidate
@@ -355,12 +354,11 @@ def _stream_stuck_job_candidates(cutoff: datetime):
             extra={"error": str(exc)},
         )
 
-    fallback_candidates = list(
-        db.collection_group("asyncJobs")
-        .where(filter=gcf.FieldFilter("status", "==", "processing"))
-        .limit(STUCK_JOB_FALLBACK_SCAN_SIZE)
-        .stream()
-    )
+    fallback_candidates = [
+        candidate
+        for candidate in db.collection_group("asyncJobs").limit(STUCK_JOB_FALLBACK_SCAN_SIZE).stream()
+        if (candidate.to_dict() or {}).get("status") == "processing"
+    ]
     fallback_candidates = [
         candidate
         for candidate in fallback_candidates

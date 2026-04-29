@@ -43,7 +43,7 @@ firebase use cramly-cd9b5
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
-If indexes are not deployed, the worker will fall back to a slower scan path and log a warning. Deploy the indexes anyway so queue claiming and stuck-job recovery use the intended indexed queries.
+If indexes are not deployed, the worker will fall back to a slower scan path and log a warning. Deploy the indexes anyway so queue claiming and stuck-job recovery use the intended indexed queries and the `asyncJobs.status` collection-group single-field index is available.
 
 ## Blueprint layout
 
@@ -207,7 +207,7 @@ Check:
 - Firestore indexes are deployed
 - `GROQ_API_KEY` exists on the worker service, not just the API service
 
-If you see `job_claim_query_fallback` or `stuck_job_query_fallback` in the worker logs, Render is running on the non-indexed fallback path and you should re-deploy Firestore indexes.
+If you see `job_claim_query_fallback` or `stuck_job_query_fallback` in the worker logs, Render is running on the non-indexed fallback path and you should re-deploy Firestore indexes. The repo now includes the required `asyncJobs.status` collection-group single-field override in [firestore.indexes.json](../firestore.indexes.json).
 
 Re-deploy indexes if needed:
 
