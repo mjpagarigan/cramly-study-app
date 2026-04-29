@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:markdown/markdown.dart' as md;
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/tokens.dart';
@@ -117,7 +119,10 @@ class _Body extends ConsumerWidget {
               child: switch (summary.status) {
                 SummaryStatus.failed => _FailedState(summary: summary),
                 SummaryStatus.ready => _ReadyState(summary: summary),
-                _ => _PendingState(summary: summary, progress: job?.progress ?? 0),
+                _ => _PendingState(
+                  summary: summary,
+                  progress: job?.progress ?? 0,
+                ),
               },
             ),
           ],
@@ -131,9 +136,8 @@ class _Body extends ConsumerWidget {
     return switch (summary.status) {
       SummaryStatus.ready => 'Ready to read',
       SummaryStatus.failed => 'Generation failed',
-      SummaryStatus.generating => progress > 0
-          ? 'Generating... $progress%'
-          : 'Generating...',
+      SummaryStatus.generating =>
+        progress > 0 ? 'Generating... $progress%' : 'Generating...',
       SummaryStatus.queued => progress > 0 ? 'Queued... $progress%' : 'Queued',
     };
   }
@@ -240,11 +244,23 @@ class _ReadyState extends StatelessWidget {
     }
 
     return AppCard(
-      padding: const EdgeInsets.all(Spacing.lg),
+      padding: EdgeInsets.zero,
       child: Scrollbar(
         child: SingleChildScrollView(
-          child: SelectionArea(
-            child: _MarkdownBlocks(content: summary.content),
+          padding: const EdgeInsets.all(Spacing.lg),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minWidth: MediaQuery.sizeOf(context).width - 68,
+              ),
+              child: MarkdownBody(
+                data: summary.content.replaceAll('\r\n', '\n'),
+                selectable: true,
+                extensionSet: md.ExtensionSet.gitHubWeb,
+                styleSheet: _markdownStyleSheet(context),
+              ),
+            ),
           ),
         ),
       ),
@@ -252,107 +268,49 @@ class _ReadyState extends StatelessWidget {
   }
 }
 
-class _MarkdownBlocks extends StatelessWidget {
-  const _MarkdownBlocks({required this.content});
-
-  final String content;
-
-  @override
-  Widget build(BuildContext context) {
-    final lines = content.replaceAll('\r\n', '\n').split('\n');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final line in lines) _line(context, line),
-      ],
-    );
-  }
-
-  Widget _line(BuildContext context, String line) {
-    final c = context.colors;
-    final trimmed = line.trimRight();
-
-    if (trimmed.isEmpty) {
-      return const SizedBox(height: Spacing.sm);
-    }
-    if (trimmed.startsWith('# ')) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: Spacing.sm),
-        child: Text(
-          trimmed.substring(2),
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w700,
-            color: c.textPrimary,
-          ),
-        ),
-      );
-    }
-    if (trimmed.startsWith('## ')) {
-      return Padding(
-        padding: const EdgeInsets.only(top: Spacing.md, bottom: Spacing.sm),
-        child: Text(
-          trimmed.substring(3),
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: c.textPrimary,
-          ),
-        ),
-      );
-    }
-    if (trimmed.startsWith('### ')) {
-      return Padding(
-        padding: const EdgeInsets.only(top: Spacing.sm, bottom: Spacing.xs),
-        child: Text(
-          trimmed.substring(4),
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: c.textPrimary,
-          ),
-        ),
-      );
-    }
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: Spacing.sm),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '•',
-                style: TextStyle(color: c.accent, fontSize: 16),
-              ),
-            ),
-            const SizedBox(width: Spacing.sm),
-            Expanded(
-              child: Text(
-                trimmed.substring(2),
-                style: TextStyle(
-                  fontSize: 14,
-                  height: 1.6,
-                  color: c.textPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.sm),
-      child: Text(
-        trimmed,
-        style: TextStyle(
-          fontSize: 14,
-          height: 1.7,
-          color: c.textPrimary,
-        ),
-      ),
-    );
-  }
+MarkdownStyleSheet _markdownStyleSheet(BuildContext context) {
+  final c = context.colors;
+  return MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+    p: TextStyle(fontSize: 14, height: 1.7, color: c.textPrimary),
+    h1: TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
+      color: c.textPrimary,
+    ),
+    h2: TextStyle(
+      fontSize: 18,
+      fontWeight: FontWeight.w700,
+      color: c.textPrimary,
+    ),
+    h3: TextStyle(
+      fontSize: 15,
+      fontWeight: FontWeight.w700,
+      color: c.textPrimary,
+    ),
+    strong: TextStyle(
+      fontSize: 14,
+      height: 1.7,
+      fontWeight: FontWeight.w700,
+      color: c.textPrimary,
+    ),
+    listBullet: TextStyle(fontSize: 16, color: c.accent),
+    blockSpacing: Spacing.sm,
+    blockquotePadding: const EdgeInsets.symmetric(
+      horizontal: Spacing.md,
+      vertical: Spacing.sm,
+    ),
+    blockquoteDecoration: BoxDecoration(
+      color: c.bgElevated,
+      borderRadius: Radii.cardRadius,
+      border: Border.all(color: c.border),
+    ),
+    tableBorder: TableBorder.all(color: c.border),
+    tableHead: TextStyle(
+      fontSize: 13,
+      height: 1.4,
+      fontWeight: FontWeight.w700,
+      color: c.textPrimary,
+    ),
+    tableBody: TextStyle(fontSize: 13, height: 1.5, color: c.textPrimary),
+  );
 }

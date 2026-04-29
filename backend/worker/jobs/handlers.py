@@ -224,6 +224,46 @@ def _generate_summary_content(
     except RuntimeError as exc:
         raise job_service.UnrecoverableJobError(str(exc)) from exc
 
+    try:
+        return _request_summary_completion(
+            client=client,
+            title=title,
+            depth=depth,
+            source_text=source_text,
+            aggressive_trim=False,
+        )
+    except Exception as exc:  # noqa: BLE001
+        if not _should_retry_with_smaller_excerpt(exc):
+            raise
+
+        logger.warning(
+            "summary_generation_retrying_with_smaller_excerpt",
+            extra={"depth": depth, "error": str(exc)},
+        )
+        try:
+            return _request_summary_completion(
+                client=client,
+                title=title,
+                depth=depth,
+                source_text=source_text,
+                aggressive_trim=True,
+            )
+        except Exception as retry_exc:  # noqa: BLE001
+            if _should_retry_with_smaller_excerpt(retry_exc):
+                raise job_service.UnrecoverableJobError(
+                    _summary_request_too_large_message(depth)
+                ) from retry_exc
+            raise
+
+
+def _request_summary_completion(
+    *,
+    client,
+    title: str,
+    depth: str,
+    source_text: str,
+    aggressive_trim: bool,
+) -> str:
     response = client.chat.completions.create(
         model=settings.GROQ_MODEL,
         temperature=0.2,
@@ -231,12 +271,39 @@ def _generate_summary_content(
             title=title,
             depth=depth,  # type: ignore[arg-type]
             source_text=source_text,
+            aggressive_trim=aggressive_trim,
         ),
     )
     content = response.choices[0].message.content or ""
     if not content.strip():
         raise RuntimeError("Groq returned an empty summary")
     return content.strip()
+
+
+def _should_retry_with_smaller_excerpt(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(
+        needle in message
+        for needle in (
+            "request too large",
+            "reduce your message size",
+            "rate_limit_exceeded",
+            "tokens per minute",
+            "request size",
+        )
+    )
+
+
+def _summary_request_too_large_message(depth: str) -> str:
+    if depth == "eli5":
+        return (
+            "This ELI5 summary is still too large for the current Groq plan. "
+            "Try generating TL;DR or Detailed first, or split the document into smaller chunks."
+        )
+    return (
+        "This summary request is too large for the current Groq plan. "
+        "Try a shorter depth or split the document into smaller chunks."
+    )
 
 
 def _required_str(data: dict[str, object], key: str) -> str:
