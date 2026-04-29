@@ -53,7 +53,7 @@ The repo's [render.yaml](../render.yaml) is the source of truth.
   - `type: web`
   - `runtime: python`
   - `rootDir: backend`
-  - `pythonVersion: "3.11"`
+  - `PYTHON_VERSION=3.11.11` via service environment variables
   - `buildCommand: pip install -r requirements.txt`
   - `startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT`
   - `healthCheckPath: /health`
@@ -61,7 +61,7 @@ The repo's [render.yaml](../render.yaml) is the source of truth.
   - `type: worker`
   - `runtime: python`
   - `rootDir: backend`
-  - `pythonVersion: "3.11"`
+  - `PYTHON_VERSION=3.11.11` via service environment variables
   - `buildCommand: pip install -r requirements.txt`
   - `startCommand: python -m worker.worker`
 
@@ -73,6 +73,7 @@ Shared non-secret vars already defined in the Blueprint:
 
 - `ENV=production`
 - `LOG_LEVEL=INFO`
+- `PYTHON_VERSION=3.11.11`
 - `FIREBASE_PROJECT_ID=cramly-cd9b5`
 - `FIREBASE_STORAGE_BUCKET=cramly-cd9b5.firebasestorage.app`
 - `GROQ_MODEL=openai/gpt-oss-120b`
@@ -218,6 +219,7 @@ Check:
 
 - the API start command is exactly `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
 - the health check path is `/health`
+- `PYTHON_VERSION` is set to a valid Render-supported Python version
 
 Expected health URL:
 

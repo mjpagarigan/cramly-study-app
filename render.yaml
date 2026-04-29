@@ -13,7 +13,6 @@ services:
     region: singapore
     plan: starter
     rootDir: backend
-    pythonVersion: "3.11"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
@@ -26,6 +25,8 @@ services:
         value: INFO
       - key: SERVICE_NAME
         value: cramly-api
+      - key: PYTHON_VERSION
+        value: 3.11.11
       - key: FIREBASE_PROJECT_ID
         value: cramly-cd9b5
       - key: FIREBASE_STORAGE_BUCKET
@@ -43,7 +44,6 @@ services:
     region: singapore
     plan: starter
     rootDir: backend
-    pythonVersion: "3.11"
     buildCommand: pip install -r requirements.txt
     startCommand: python -m worker.worker
     maxShutdownDelaySeconds: 120
@@ -55,6 +55,8 @@ services:
         value: INFO
       - key: SERVICE_NAME
         value: cramly-worker
+      - key: PYTHON_VERSION
+        value: 3.11.11
       - key: FIREBASE_PROJECT_ID
         value: cramly-cd9b5
       - key: FIREBASE_STORAGE_BUCKET

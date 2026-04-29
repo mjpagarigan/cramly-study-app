@@ -454,7 +454,7 @@ For **public launch** (1000+ users): plan ~$200–500/mo depending on usage. Per
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Build fails: `pip install` errors | Python version mismatch | Confirm `pythonVersion: "3.11"` in `render.yaml` |
+| Build fails: `pip install` errors | Python version mismatch | Confirm `PYTHON_VERSION=3.11.11` is set for each Render service |
 | Service crashes on start | Env vars missing | Re-check all three secrets are set on **both** services |
 | 502 on first request after deploy | Cold start (Starter plan) | Either upgrade to Standard, or accept the 30s warmup |
 
