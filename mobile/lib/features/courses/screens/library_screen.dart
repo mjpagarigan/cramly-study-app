@@ -7,6 +7,7 @@ import '../../../core/theme/tokens.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_input.dart';
+import '../../../shared/widgets/app_page_header.dart';
 import '../../../shared/widgets/empty_state.dart';
 import '../data/course_model.dart';
 import '../providers/course_providers.dart';
@@ -20,11 +21,23 @@ class LibraryScreen extends ConsumerStatefulWidget {
 }
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  late final TextEditingController _searchController;
   String _query = '';
 
   @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final coursesAsync = ref.watch(coursesStreamProvider);
 
     return SafeArea(
@@ -38,51 +51,42 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Library',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: c.textPrimary,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                AppButton(
-                  label: 'New',
-                  size: AppButtonSize.sm,
-                  variant: AppButtonVariant.ghost,
-                  icon: Icons.add,
-                  onPressed: () => showCourseFormSheet(context),
-                ),
-              ],
+            AppPageHeader(
+              title: 'Library',
+              eyebrow: 'Your material',
+              showTrace: true,
+              trailing: AppButton(
+                label: 'New',
+                size: AppButtonSize.sm,
+                variant: AppButtonVariant.ghost,
+                icon: Icons.add,
+                onPressed: () => showCourseFormSheet(context),
+              ),
             ),
             const SizedBox(height: Spacing.lg),
             AppInput(
-              placeholder: 'Search courses...',
+              controller: _searchController,
+              label: 'Search courses',
+              placeholder: 'Search your courses',
               icon: Icons.search,
-              onChanged: (v) => setState(() => _query = v.toLowerCase()),
+              textInputAction: TextInputAction.search,
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
             ),
             const SizedBox(height: Spacing.lg),
             Expanded(
               child: coursesAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Text(
-                    'Failed to load courses\n$e',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: c.error),
-                  ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (_, _) => EmptyState(
+                  title: 'Couldn’t load your library',
+                  subtitle: 'Check your connection and try again.',
+                  icon: Icons.cloud_off_outlined,
+                  actionLabel: 'Try again',
+                  onAction: () => ref.invalidate(coursesStreamProvider),
                 ),
                 data: (all) {
                   final filtered = _query.isEmpty
                       ? all
-                      : all
-                          .where((x) => x.name.toLowerCase().contains(_query))
-                          .toList();
+                      : filterCourses(all, _query);
 
                   if (all.isEmpty) {
                     return EmptyState(
@@ -98,7 +102,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   if (filtered.isEmpty) {
                     return EmptyState(
                       title: 'No matches',
-                      subtitle: 'Nothing matches "$_query".',
+                      subtitle:
+                          'No course matches “${_searchController.text.trim()}”. Try a different search.',
                       icon: Icons.search_off,
                     );
                   }
@@ -108,8 +113,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     itemCount: filtered.length,
                     separatorBuilder: (_, _) =>
                         const SizedBox(height: Spacing.sm),
-                    itemBuilder: (_, i) =>
-                        _CourseRow(course: filtered[i]),
+                    itemBuilder: (_, i) => _CourseRow(course: filtered[i]),
                   );
                 },
               ),
@@ -119,6 +123,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ),
     );
   }
+}
+
+List<Course> filterCourses(List<Course> courses, String query) {
+  final normalized = query.trim().toLowerCase();
+  if (normalized.isEmpty) return List<Course>.of(courses);
+  return courses
+      .where((course) => course.name.toLowerCase().contains(normalized))
+      .toList();
 }
 
 class _CourseRow extends StatelessWidget {
@@ -134,20 +146,21 @@ class _CourseRow extends StatelessWidget {
       onTap: () => context.push('/library/${course.id}'),
       child: Row(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: Radii.cardRadius,
-            ),
-            alignment: Alignment.center,
+          Semantics(
+            label: '${course.name} course color',
             child: Container(
-              width: 18,
-              height: 18,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.all(Radius.circular(5)),
+                color: color.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withValues(alpha: 0.28)),
+              ),
+              alignment: Alignment.center,
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
             ),
           ),
@@ -158,10 +171,9 @@ class _CourseRow extends StatelessWidget {
               children: [
                 Text(
                   course.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: c.textPrimary,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -184,7 +196,6 @@ class _CourseRow extends StatelessWidget {
     final parts = <String>[
       '${c.documentCount} ${c.documentCount == 1 ? 'doc' : 'docs'}',
       '${c.deckCount} ${c.deckCount == 1 ? 'deck' : 'decks'}',
-      '${c.quizCount} ${c.quizCount == 1 ? 'quiz' : 'quizzes'}',
     ];
     return parts.join(' · ');
   }

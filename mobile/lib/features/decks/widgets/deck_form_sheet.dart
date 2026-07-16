@@ -62,6 +62,15 @@ class _DeckFormSheetState extends ConsumerState<_DeckFormSheet> {
       setState(() => _error = 'Title is required');
       return;
     }
+    if (widget.existing != null &&
+        widget.existing!.description.isNotEmpty &&
+        description.isEmpty) {
+      setState(() {
+        _error =
+            'The current API cannot clear an existing description. Keep a description or cancel this edit.';
+      });
+      return;
+    }
 
     setState(() {
       _busy = true;
@@ -171,6 +180,7 @@ class _SheetField extends StatelessWidget {
       style: TextStyle(color: c.textPrimary, fontSize: 15),
       cursorColor: c.accent,
       decoration: InputDecoration(
+        labelText: placeholder,
         hintText: placeholder,
         hintStyle: TextStyle(color: c.textMuted, fontSize: 15),
         filled: true,

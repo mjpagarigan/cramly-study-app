@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,7 +8,10 @@ import 'package:markdown/markdown.dart' as md;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/learning_trace.dart';
+import '../../jobs/data/async_job_model.dart';
 import '../../jobs/providers/job_providers.dart';
 import '../data/summary_model.dart';
 import '../providers/summary_providers.dart';
@@ -31,12 +35,12 @@ class SummaryScreen extends ConsumerWidget {
       ),
       body: summaryAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            'Failed to load summary\n$e',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.colors.error),
-          ),
+        error: (_, _) => EmptyState(
+          title: 'Couldn’t load this summary',
+          subtitle: 'Check your connection and try again.',
+          icon: Icons.cloud_off_outlined,
+          actionLabel: 'Try again',
+          onAction: () => ref.invalidate(summaryByIdProvider(summaryId)),
         ),
         data: (summary) {
           if (summary == null) {
@@ -65,6 +69,11 @@ class _Body extends ConsumerWidget {
         ? null
         : ref.watch(asyncJobByIdProvider(summary.jobId!));
     final job = jobAsync?.valueOrNull;
+    final jobFailed = job?.status == AsyncJobStatus.failed;
+    final effectiveStatus = jobFailed ? SummaryStatus.failed : summary.status;
+    final effectiveError = jobFailed
+        ? (job?.errorMessage ?? summary.errorMessage)
+        : summary.errorMessage;
 
     return SafeArea(
       child: Padding(
@@ -97,15 +106,12 @@ class _Body extends ConsumerWidget {
                       children: [
                         Text(
                           summary.depth.label,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: c.textPrimary,
-                          ),
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(color: c.textPrimary),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _statusLine(summary, job),
+                          _statusLine(effectiveStatus, job?.progress ?? 0),
                           style: TextStyle(fontSize: 13, color: c.textMuted),
                         ),
                       ],
@@ -114,16 +120,30 @@ class _Body extends ConsumerWidget {
                 ],
               ),
             ),
+            const SizedBox(height: Spacing.sm),
+            const LearningTrace(width: 112, height: 20),
             const SizedBox(height: Spacing.xl),
             Expanded(
-              child: switch (summary.status) {
-                SummaryStatus.failed => _FailedState(summary: summary),
-                SummaryStatus.ready => _ReadyState(summary: summary),
-                _ => _PendingState(
-                  summary: summary,
-                  progress: job?.progress ?? 0,
-                ),
-              },
+              child: jobAsync?.hasError == true
+                  ? EmptyState(
+                      title: 'Couldn’t check summary status',
+                      subtitle:
+                          'The status listener stopped. Check your connection and try again.',
+                      icon: Icons.cloud_off_outlined,
+                      actionLabel: 'Try again',
+                      onAction: () =>
+                          ref.invalidate(asyncJobByIdProvider(summary.jobId!)),
+                    )
+                  : switch (effectiveStatus) {
+                      SummaryStatus.failed => _FailedState(
+                        message: effectiveError,
+                      ),
+                      SummaryStatus.ready => _ReadyState(summary: summary),
+                      _ => _PendingState(
+                        summary: summary,
+                        progress: job?.progress ?? 0,
+                      ),
+                    },
             ),
           ],
         ),
@@ -131,9 +151,8 @@ class _Body extends ConsumerWidget {
     );
   }
 
-  String _statusLine(Summary summary, dynamic job) {
-    final progress = job?.progress as int? ?? 0;
-    return switch (summary.status) {
+  String _statusLine(SummaryStatus status, int progress) {
+    return switch (status) {
       SummaryStatus.ready => 'Ready to read',
       SummaryStatus.failed => 'Generation failed',
       SummaryStatus.generating =>
@@ -196,9 +215,9 @@ class _PendingState extends StatelessWidget {
 }
 
 class _FailedState extends StatelessWidget {
-  const _FailedState({required this.summary});
+  const _FailedState({required this.message});
 
-  final Summary summary;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +238,7 @@ class _FailedState extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.sm),
           Text(
-            summary.errorMessage ?? 'Unknown error.',
+            message ?? 'Unknown error.',
             style: TextStyle(fontSize: 14, color: c.textPrimary, height: 1.5),
           ),
         ],
@@ -243,28 +262,61 @@ class _ReadyState extends StatelessWidget {
       );
     }
 
-    return AppCard(
-      padding: EdgeInsets.zero,
-      child: Scrollbar(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(Spacing.lg),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minWidth: MediaQuery.sizeOf(context).width - 68,
-              ),
-              child: MarkdownBody(
-                data: summary.content.replaceAll('\r\n', '\n'),
-                selectable: true,
-                extensionSet: md.ExtensionSet.gitHubWeb,
-                styleSheet: _markdownStyleSheet(context),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: AppButton(
+            label: 'Copy summary',
+            icon: Icons.copy_outlined,
+            size: AppButtonSize.sm,
+            variant: AppButtonVariant.ghost,
+            onPressed: () => _copy(context),
+          ),
+        ),
+        const SizedBox(height: Spacing.sm),
+        Expanded(
+          child: AppCard(
+            padding: EdgeInsets.zero,
+            child: Scrollbar(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(Spacing.lg),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: MediaQuery.sizeOf(context).width - 68,
+                    ),
+                    child: MarkdownBody(
+                      data: summary.content.replaceAll('\r\n', '\n'),
+                      selectable: true,
+                      extensionSet: md.ExtensionSet.gitHubWeb,
+                      styleSheet: _markdownStyleSheet(context),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
+      ],
     );
+  }
+
+  Future<void> _copy(BuildContext context) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: summary.content));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Summary copied')));
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn’t copy summary: $error')));
+    }
   }
 }
 

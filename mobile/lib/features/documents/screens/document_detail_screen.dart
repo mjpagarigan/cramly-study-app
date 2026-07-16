@@ -9,7 +9,10 @@ import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/bottom_sheet_shell.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/learning_trace.dart';
 import '../../decks/providers/deck_providers.dart';
+import '../../jobs/data/async_job_model.dart';
+import '../../jobs/providers/job_providers.dart';
 import '../../summaries/data/summary_model.dart';
 import '../../summaries/providers/summary_providers.dart';
 import '../data/document_model.dart';
@@ -30,6 +33,7 @@ class DocumentDetailScreen extends ConsumerWidget {
           icon: const Icon(Icons.chevron_left),
           onPressed: () => context.pop(),
         ),
+        title: const Text('Document'),
         actions: [
           docAsync.maybeWhen(
             data: (doc) => doc == null
@@ -46,12 +50,12 @@ class DocumentDetailScreen extends ConsumerWidget {
       ),
       body: docAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            'Failed to load document\n$e',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.error),
-          ),
+        error: (_, _) => EmptyState(
+          title: 'Couldn’t load this document',
+          subtitle: 'Check your connection and try again.',
+          icon: Icons.cloud_off_outlined,
+          actionLabel: 'Try again',
+          onAction: () => ref.invalidate(documentByIdProvider(documentId)),
         ),
         data: (doc) {
           if (doc == null) {
@@ -75,9 +79,9 @@ class DocumentDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete document?'),
+        title: const Text('Delete document record?'),
         content: Text(
-          '"${doc.title}" and its extracted text will be permanently deleted.',
+          '“${doc.title}”, its uploaded source, and extracted text will be deleted. Generated decks and summaries are retained and may become orphaned.',
         ),
         actions: [
           TextButton(
@@ -87,7 +91,7 @@ class DocumentDetailScreen extends ConsumerWidget {
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             style: TextButton.styleFrom(foregroundColor: context.colors.error),
-            child: const Text('Delete'),
+            child: const Text('Delete document'),
           ),
         ],
       ),
@@ -113,6 +117,17 @@ class _Body extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final jobAsync =
+        document.extractionJobId == null || document.extractionJobId!.isEmpty
+        ? null
+        : ref.watch(asyncJobByIdProvider(document.extractionJobId!));
+    final job = jobAsync?.valueOrNull;
+    final jobFailed = job?.status == AsyncJobStatus.failed;
+    final effectiveStatus = jobFailed ? DocumentStatus.failed : document.status;
+    final effectiveError = jobFailed
+        ? (job?.errorMessage ?? document.errorMessage)
+        : document.errorMessage;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -124,11 +139,38 @@ class _Body extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Header(document: document),
+            _Header(
+              document: document,
+              status: effectiveStatus,
+              progress: job?.progress ?? 0,
+            ),
+            const SizedBox(height: Spacing.sm),
+            const LearningTrace(width: 112, height: 20),
             const SizedBox(height: Spacing.lg),
-            _GenerateActions(document: document),
+            _GenerateActions(
+              document: document,
+              effectiveStatus: effectiveStatus,
+            ),
             const SizedBox(height: Spacing.xl),
-            Expanded(child: _ExtractedTextView(document: document)),
+            Expanded(
+              child: jobAsync?.hasError == true
+                  ? EmptyState(
+                      title: 'Couldn’t check extraction status',
+                      subtitle:
+                          'The status listener stopped. Check your connection and try again.',
+                      icon: Icons.cloud_off_outlined,
+                      actionLabel: 'Try again',
+                      onAction: () => ref.invalidate(
+                        asyncJobByIdProvider(document.extractionJobId!),
+                      ),
+                    )
+                  : _ExtractedTextView(
+                      document: document,
+                      status: effectiveStatus,
+                      errorMessage: effectiveError,
+                      progress: job?.progress ?? 0,
+                    ),
+            ),
           ],
         ),
       ),
@@ -137,59 +179,68 @@ class _Body extends ConsumerWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.document});
+  const _Header({
+    required this.document,
+    required this.status,
+    required this.progress,
+  });
   final Document document;
+  final DocumentStatus status;
+  final int progress;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Row(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: c.accentSubtle,
-            borderRadius: Radii.cardRadius,
+    return AppCard(
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: c.accentSubtle,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              _iconFor(document.sourceType),
+              color: c.accent,
+              size: 22,
+            ),
           ),
-          alignment: Alignment.center,
-          child: Icon(_iconFor(document.sourceType), color: c.accent, size: 22),
-        ),
-        const SizedBox(width: Spacing.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                document.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: c.textPrimary,
-                  letterSpacing: -0.2,
+          const SizedBox(width: Spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  document.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.headlineSmall?.copyWith(color: c.textPrimary),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  _statusBadgeFor(document.status),
-                  const SizedBox(width: Spacing.sm),
-                  Flexible(
-                    child: Text(
-                      _meta(document),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: c.textMuted),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _statusBadgeFor(status),
+                    const SizedBox(width: Spacing.sm),
+                    Flexible(
+                      child: Text(
+                        _meta(document, status, progress),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: c.textMuted),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -213,20 +264,36 @@ class _Header extends StatelessWidget {
       label: 'Failed',
       color: AppBadgeColor.error,
     ),
-    _ => const AppBadge(label: 'Extracting', color: AppBadgeColor.secondary),
+    DocumentStatus.uploading => const AppBadge(
+      label: 'Uploading',
+      color: AppBadgeColor.secondary,
+    ),
+    DocumentStatus.extracting => const AppBadge(
+      label: 'Extracting',
+      color: AppBadgeColor.secondary,
+    ),
   };
 
-  static String _meta(Document d) {
+  static String _meta(Document d, DocumentStatus status, int progress) {
     final parts = <String>[];
     if (d.pageCount != null) parts.add('${d.pageCount} pages');
     if (d.wordCount > 0) parts.add('${d.wordCount} words');
+    if ((status == DocumentStatus.uploading ||
+            status == DocumentStatus.extracting) &&
+        progress > 0) {
+      parts.add('$progress%');
+    }
     return parts.join(' · ');
   }
 }
 
 class _GenerateActions extends ConsumerStatefulWidget {
-  const _GenerateActions({required this.document});
+  const _GenerateActions({
+    required this.document,
+    required this.effectiveStatus,
+  });
   final Document document;
+  final DocumentStatus effectiveStatus;
 
   @override
   ConsumerState<_GenerateActions> createState() => _GenerateActionsState();
@@ -244,8 +311,9 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
     final latestSummaryId = document.generatedAssets.summaryIds.isEmpty
         ? null
         : document.generatedAssets.summaryIds.last;
-    final canGenerateFlashcards = document.status == DocumentStatus.ready;
-    final canGenerateSummary = document.status == DocumentStatus.ready;
+    final canGenerateFlashcards =
+        widget.effectiveStatus == DocumentStatus.ready;
+    final canGenerateSummary = widget.effectiveStatus == DocumentStatus.ready;
 
     return Wrap(
       spacing: Spacing.sm,
@@ -254,7 +322,7 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
         Tooltip(
           message: canGenerateFlashcards
               ? 'Generate a flashcard deck'
-              : document.status == DocumentStatus.failed
+              : widget.effectiveStatus == DocumentStatus.failed
               ? 'Fix extraction first'
               : 'Wait for extraction to finish',
           child: AppButton(
@@ -278,11 +346,11 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
               '/library/${document.courseId}/deck/$latestDeckId',
             ),
           ),
-        const _DisabledAction(label: 'Quiz', sprint: 7, icon: Icons.quiz),
+        const _DisabledAction(label: 'Quiz', icon: Icons.quiz),
         Tooltip(
           message: canGenerateSummary
               ? 'Generate a markdown summary'
-              : document.status == DocumentStatus.failed
+              : widget.effectiveStatus == DocumentStatus.failed
               ? 'Fix extraction first'
               : 'Wait for extraction to finish',
           child: AppButton(
@@ -306,11 +374,7 @@ class _GenerateActionsState extends ConsumerState<_GenerateActions> {
               '/library/${document.courseId}/doc/${document.id}/summary/$latestSummaryId',
             ),
           ),
-        const _DisabledAction(
-          label: 'Podcast',
-          sprint: 10,
-          icon: Icons.podcasts,
-        ),
+        const _DisabledAction(label: 'Podcast', icon: Icons.podcasts),
       ],
     );
   }
@@ -539,19 +603,14 @@ class _CardCountOption extends StatelessWidget {
 }
 
 class _DisabledAction extends StatelessWidget {
-  const _DisabledAction({
-    required this.label,
-    required this.sprint,
-    required this.icon,
-  });
+  const _DisabledAction({required this.label, required this.icon});
   final String label;
-  final int sprint;
   final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Lands in Sprint $sprint',
+      message: '$label generation is planned but not available yet',
       child: AppButton(
         label: label,
         icon: icon,
@@ -564,14 +623,22 @@ class _DisabledAction extends StatelessWidget {
 }
 
 class _ExtractedTextView extends ConsumerWidget {
-  const _ExtractedTextView({required this.document});
+  const _ExtractedTextView({
+    required this.document,
+    required this.status,
+    required this.errorMessage,
+    required this.progress,
+  });
   final Document document;
+  final DocumentStatus status;
+  final String? errorMessage;
+  final int progress;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
 
-    if (document.status == DocumentStatus.failed) {
+    if (status == DocumentStatus.failed) {
       return AppCard(
         borderColor: c.error.withValues(alpha: 0.3),
         child: Column(
@@ -587,7 +654,7 @@ class _ExtractedTextView extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              document.errorMessage ?? 'Unknown error.',
+              errorMessage ?? 'Unknown error.',
               style: TextStyle(fontSize: 13, color: c.textPrimary),
             ),
           ],
@@ -595,8 +662,7 @@ class _ExtractedTextView extends ConsumerWidget {
       );
     }
 
-    if (document.status != DocumentStatus.ready ||
-        document.extractedTextPath == null) {
+    if (status != DocumentStatus.ready) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -604,10 +670,38 @@ class _ExtractedTextView extends ConsumerWidget {
             const CircularProgressIndicator(),
             const SizedBox(height: Spacing.md),
             Text(
-              'Extracting text...',
+              progress > 0 ? 'Extracting text… $progress%' : 'Extracting text…',
               style: TextStyle(fontSize: 13, color: c.textMuted),
             ),
           ],
+        ),
+      );
+    }
+
+    if (document.extractedTextPath == null) {
+      return SingleChildScrollView(
+        child: AppCard(
+          borderColor: c.warning.withValues(alpha: 0.35),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.text_snippet_outlined, color: c.warning),
+              const SizedBox(height: Spacing.sm),
+              Text(
+                'Extracted text is not available yet.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: c.textPrimary),
+              ),
+              const SizedBox(height: Spacing.md),
+              AppButton(
+                label: 'Check again',
+                size: AppButtonSize.sm,
+                variant: AppButtonVariant.secondary,
+                onPressed: () =>
+                    ref.invalidate(documentByIdProvider(document.id)),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -617,13 +711,52 @@ class _ExtractedTextView extends ConsumerWidget {
     );
     return textAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text(
-        'Failed to load extracted text: $e',
-        style: TextStyle(color: c.error),
+      error: (e, _) => AppCard(
+        borderColor: c.error.withValues(alpha: 0.35),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, color: c.error),
+            const SizedBox(height: Spacing.sm),
+            Text(
+              'Couldn’t load extracted text',
+              style: TextStyle(
+                color: c.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: Spacing.xs),
+            Text(
+              '$e',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: c.textMuted, fontSize: 13),
+            ),
+            const SizedBox(height: Spacing.md),
+            AppButton(
+              label: 'Retry download',
+              size: AppButtonSize.sm,
+              onPressed: () => ref.invalidate(
+                extractedTextProvider(document.extractedTextPath!),
+              ),
+            ),
+          ],
+        ),
       ),
       data: (text) {
-        if (text == null || text.isEmpty) {
-          return Text('(empty)', style: TextStyle(color: c.textMuted));
+        if (text == null) {
+          return const EmptyState(
+            title: 'Text is not ready',
+            subtitle: 'Check again in a moment.',
+            icon: Icons.text_snippet_outlined,
+          );
+        }
+        if (text.trim().isEmpty) {
+          return const EmptyState(
+            title: 'No readable text',
+            subtitle:
+                'The extraction completed successfully, but the result was empty.',
+            icon: Icons.text_snippet_outlined,
+          );
         }
         return AppCard(
           padding: const EdgeInsets.all(Spacing.md),

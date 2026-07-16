@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -52,6 +53,19 @@ class DocumentRepository {
         .map((snap) => snap.docs.map(Document.fromFirestore).toList());
   }
 
+  /// Stream of every document owned by [uid], newest first.
+  ///
+  /// Sorting happens on the client so this collection-wide listener does not
+  /// require a new Firestore index and does not omit legacy rows that lack an
+  /// `uploadedAt` field.
+  Stream<List<Document>> watchAll(String uid) {
+    return _collectionForUser(uid).snapshots().map((snap) {
+      final documents = snap.docs.map(Document.fromFirestore).toList();
+      documents.sort(_newestDocumentFirst);
+      return documents;
+    });
+  }
+
   /// Watches a single doc — used by the upload flow to flip from extracting → ready.
   Stream<Document?> watchById(String uid, String documentId) {
     return _collectionForUser(uid).doc(documentId).snapshots().map((snap) {
@@ -88,9 +102,7 @@ class DocumentRepository {
   /// stable before the doc actually exists in Firestore. The backend will
   /// later create the Firestore doc with its own id — that's fine, we just
   /// pass the storage path through.
-  String buildStoragePath({
-    required String fileExtension,
-  }) {
+  String buildStoragePath({required String fileExtension}) {
     final docId = _collection().doc().id; // 20-char auto id
     return 'users/${_uid()}/documents/$docId/original$fileExtension';
   }
@@ -104,15 +116,20 @@ class DocumentRepository {
     String? mimeType,
     String? title,
   }) async {
-    final json = await _api.post('/documents', body: {
-      'courseId': courseId,
-      'sourceType': sourceType.toJson(),
-      'fileName': fileName,
-      'fileSize': fileSize,
-      'storagePath': storagePath,
-      'mimeType': ?mimeType,
-      'title': ?title,
-    }) as Map<String, dynamic>;
+    final json =
+        await _api.post(
+              '/documents',
+              body: {
+                'courseId': courseId,
+                'sourceType': sourceType.toJson(),
+                'fileName': fileName,
+                'fileSize': fileSize,
+                'storagePath': storagePath,
+                'mimeType': ?mimeType,
+                'title': ?title,
+              },
+            )
+            as Map<String, dynamic>;
     return Document.fromJson(json);
   }
 
@@ -122,12 +139,17 @@ class DocumentRepository {
     required String url,
     String? title,
   }) async {
-    final json = await _api.post('/documents', body: {
-      'courseId': courseId,
-      'sourceType': sourceType.toJson(),
-      'sourceUrl': url,
-      'title': ?title,
-    }) as Map<String, dynamic>;
+    final json =
+        await _api.post(
+              '/documents',
+              body: {
+                'courseId': courseId,
+                'sourceType': sourceType.toJson(),
+                'sourceUrl': url,
+                'title': ?title,
+              },
+            )
+            as Map<String, dynamic>;
     return Document.fromJson(json);
   }
 
@@ -135,17 +157,64 @@ class DocumentRepository {
     await _api.delete('/documents/$documentId');
   }
 
-  /// Fetches the extracted text from Storage. Returns null if not yet ready.
+  /// Fetches UTF-8 extracted text from Storage.
+  ///
+  /// An empty object is returned as an empty string. Download failures,
+  /// over-limit objects, and malformed UTF-8 are surfaced to the provider as
+  /// errors so the UI can distinguish them from legitimately empty content
+  /// and offer a retry.
   Future<String?> fetchExtractedText(String extractedTextPath) async {
     try {
       final ref = FirebaseStorage.instance.ref(extractedTextPath);
       // 5 MB cap — extracted text rarely exceeds this and we'd rather error
       // than OOM the device.
       final bytes = await ref.getData(5 * 1024 * 1024);
-      if (bytes == null) return null;
-      return String.fromCharCodes(bytes);
-    } catch (_) {
-      return null;
+      if (bytes == null) {
+        throw const ExtractedTextLoadException(
+          'The extracted text is larger than the 5 MiB viewing limit.',
+        );
+      }
+      return decodeExtractedText(bytes);
+    } on ExtractedTextLoadException {
+      rethrow;
+    } on FormatException catch (error) {
+      throw ExtractedTextLoadException(
+        'The extracted text is not valid UTF-8.',
+        cause: error,
+      );
+    } on FirebaseException catch (error) {
+      throw ExtractedTextLoadException(
+        'Cramly could not download the extracted text.',
+        cause: error,
+      );
+    } catch (error) {
+      throw ExtractedTextLoadException(
+        'Cramly could not load the extracted text.',
+        cause: error,
+      );
     }
   }
+}
+
+/// Decodes extracted-text bytes without silently replacing malformed input.
+String decodeExtractedText(List<int> bytes) => utf8.decode(bytes);
+
+class ExtractedTextLoadException implements Exception {
+  const ExtractedTextLoadException(this.message, {this.cause});
+
+  final String message;
+  final Object? cause;
+
+  @override
+  String toString() => message;
+}
+
+int _newestDocumentFirst(Document a, Document b) {
+  final aDate = a.uploadedAt ?? a.extractedAt;
+  final bDate = b.uploadedAt ?? b.extractedAt;
+  if (aDate == null && bDate == null) return a.id.compareTo(b.id);
+  if (aDate == null) return 1;
+  if (bDate == null) return -1;
+  final byDate = bDate.compareTo(aDate);
+  return byDate == 0 ? a.id.compareTo(b.id) : byDate;
 }

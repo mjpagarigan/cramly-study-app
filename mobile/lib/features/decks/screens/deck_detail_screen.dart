@@ -8,6 +8,8 @@ import '../../../shared/widgets/app_badge.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../shared/widgets/learning_trace.dart';
+import '../../jobs/data/async_job_model.dart';
 import '../../jobs/providers/job_providers.dart';
 import '../data/deck_model.dart';
 import '../providers/deck_providers.dart';
@@ -30,6 +32,7 @@ class DeckDetailScreen extends ConsumerWidget {
           icon: const Icon(Icons.chevron_left),
           onPressed: () => context.pop(),
         ),
+        title: const Text('Flashcard deck'),
         actions: [
           deckAsync.maybeWhen(
             data: (deck) => deck == null
@@ -46,12 +49,12 @@ class DeckDetailScreen extends ConsumerWidget {
       ),
       body: deckAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text(
-            'Failed to load deck\n$e',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: c.error),
-          ),
+        error: (_, _) => EmptyState(
+          title: 'Couldn’t load this deck',
+          subtitle: 'Check your connection and try again.',
+          icon: Icons.cloud_off_outlined,
+          actionLabel: 'Try again',
+          onAction: () => ref.invalidate(deckByIdProvider(deckId)),
         ),
         data: (deck) {
           if (deck == null) {
@@ -116,6 +119,11 @@ class _Body extends ConsumerWidget {
         ? null
         : ref.watch(asyncJobByIdProvider(deck.jobId!));
     final job = jobAsync?.valueOrNull;
+    final jobFailed = job?.status == AsyncJobStatus.failed;
+    final effectiveStatus = jobFailed ? DeckStatus.failed : deck.status;
+    final effectiveError = jobFailed
+        ? (job?.errorMessage ?? deck.errorMessage)
+        : deck.errorMessage;
 
     return SafeArea(
       child: Padding(
@@ -128,43 +136,60 @@ class _Body extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _Header(deck: deck, progress: job?.progress ?? 0),
+            _Header(
+              deck: deck,
+              progress: job?.progress ?? 0,
+              status: effectiveStatus,
+            ),
+            const SizedBox(height: Spacing.sm),
+            const LearningTrace(width: 112, height: 20),
             const SizedBox(height: Spacing.lg),
-            _ActionRow(deck: deck),
+            _ActionRow(deck: deck, status: effectiveStatus),
             const SizedBox(height: Spacing.xl),
             Expanded(
-              child: switch (deck.status) {
-                DeckStatus.failed => _FailedState(deck: deck),
-                DeckStatus.queued || DeckStatus.generating => _PendingState(
-                  deck: deck,
-                  progress: job?.progress ?? 0,
-                ),
-                DeckStatus.ready => cardsAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (e, _) => Center(
-                    child: Text(
-                      'Failed to load cards\n$e',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: context.colors.error),
-                    ),
-                  ),
-                  data: (cards) => cards.isEmpty
-                      ? const EmptyState(
-                          title: 'No cards yet',
-                          subtitle:
-                              'Add a card manually or generate from a document.',
-                          icon: Icons.flash_on_outlined,
-                        )
-                      : ListView.separated(
-                          itemCount: cards.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: Spacing.sm),
-                          itemBuilder: (_, i) =>
-                              _CardRow(deck: deck, card: cards[i]),
+              child: jobAsync?.hasError == true
+                  ? EmptyState(
+                      title: 'Couldn’t check generation status',
+                      subtitle:
+                          'The status listener stopped. Check your connection and try again.',
+                      icon: Icons.cloud_off_outlined,
+                      actionLabel: 'Try again',
+                      onAction: () =>
+                          ref.invalidate(asyncJobByIdProvider(deck.jobId!)),
+                    )
+                  : switch (effectiveStatus) {
+                      DeckStatus.failed => _FailedState(
+                        message: effectiveError,
+                      ),
+                      DeckStatus.queued || DeckStatus.generating =>
+                        _PendingState(deck: deck, progress: job?.progress ?? 0),
+                      DeckStatus.ready => cardsAsync.when(
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (_, _) => EmptyState(
+                          title: 'Couldn’t load cards',
+                          subtitle: 'Check your connection and try again.',
+                          icon: Icons.cloud_off_outlined,
+                          actionLabel: 'Try again',
+                          onAction: () =>
+                              ref.invalidate(deckCardsProvider(deck.id)),
                         ),
-                ),
-              },
+                        data: (cards) => cards.isEmpty
+                            ? const EmptyState(
+                                title: 'No cards yet',
+                                subtitle:
+                                    'Add a card manually or generate from a document.',
+                                icon: Icons.flash_on_outlined,
+                              )
+                            : ListView.separated(
+                                itemCount: cards.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: Spacing.sm),
+                                itemBuilder: (_, i) =>
+                                    _CardRow(deck: deck, card: cards[i]),
+                              ),
+                      ),
+                    },
             ),
           ],
         ),
@@ -174,10 +199,15 @@ class _Body extends ConsumerWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.deck, required this.progress});
+  const _Header({
+    required this.deck,
+    required this.progress,
+    required this.status,
+  });
 
   final Deck deck;
   final int progress;
+  final DeckStatus status;
 
   @override
   Widget build(BuildContext context) {
@@ -212,15 +242,13 @@ class _Header extends StatelessWidget {
                   children: [
                     Text(
                       deck.title,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: c.textPrimary,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.headlineSmall?.copyWith(color: c.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      _subtitle(deck, progress),
+                      _subtitle(deck, status, progress),
                       style: TextStyle(fontSize: 13, color: c.textMuted),
                     ),
                   ],
@@ -245,17 +273,13 @@ class _Header extends StatelessWidget {
             runSpacing: Spacing.sm,
             children: [
               AppBadge(
-                label: deck.status.label,
-                color: switch (deck.status) {
+                label: status.label,
+                color: switch (status) {
                   DeckStatus.ready => AppBadgeColor.success,
                   DeckStatus.failed => AppBadgeColor.error,
                   DeckStatus.generating => AppBadgeColor.accent,
                   DeckStatus.queued => AppBadgeColor.secondary,
                 },
-              ),
-              AppBadge(
-                label: deck.generationMethod.label,
-                color: AppBadgeColor.secondary,
               ),
             ],
           ),
@@ -264,10 +288,10 @@ class _Header extends StatelessWidget {
     );
   }
 
-  String _subtitle(Deck deck, int progress) {
+  String _subtitle(Deck deck, DeckStatus status, int progress) {
     final count = '${deck.cardCount} ${deck.cardCount == 1 ? 'card' : 'cards'}';
-    return switch (deck.status) {
-      DeckStatus.ready => count,
+    return switch (status) {
+      DeckStatus.ready => '$count · ${deck.generationMethod.label}',
       DeckStatus.failed => 'Generation failed',
       DeckStatus.generating =>
         progress > 0 ? 'Generating... $progress%' : 'Generating...',
@@ -277,15 +301,15 @@ class _Header extends StatelessWidget {
 }
 
 class _ActionRow extends ConsumerWidget {
-  const _ActionRow({required this.deck});
+  const _ActionRow({required this.deck, required this.status});
 
   final Deck deck;
+  final DeckStatus status;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canReview = deck.status == DeckStatus.ready && deck.cardCount > 0;
-    final canEdit =
-        deck.status == DeckStatus.ready || deck.status == DeckStatus.failed;
+    final canReview = status == DeckStatus.ready && deck.cardCount > 0;
+    final canEdit = status == DeckStatus.ready || status == DeckStatus.failed;
 
     return Wrap(
       spacing: Spacing.sm,
@@ -385,9 +409,9 @@ class _PendingState extends StatelessWidget {
 }
 
 class _FailedState extends StatelessWidget {
-  const _FailedState({required this.deck});
+  const _FailedState({required this.message});
 
-  final Deck deck;
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
@@ -408,7 +432,7 @@ class _FailedState extends StatelessWidget {
           ),
           const SizedBox(height: Spacing.sm),
           Text(
-            deck.errorMessage ?? 'Unknown error.',
+            message ?? 'Unknown error.',
             style: TextStyle(fontSize: 14, color: c.textPrimary, height: 1.5),
           ),
         ],

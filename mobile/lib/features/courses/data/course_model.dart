@@ -32,7 +32,7 @@ class Course with _$Course {
     return Course(
       id: snap.id,
       name: data['name'] as String? ?? '',
-      color: data['color'] as String? ?? '#E8A84C',
+      color: data['color'] as String? ?? '#477966',
       icon: data['icon'] as String?,
       documentCount: (data['documentCount'] as num?)?.toInt() ?? 0,
       deckCount: (data['deckCount'] as num?)?.toInt() ?? 0,

@@ -19,7 +19,10 @@ final coursesStreamProvider = StreamProvider<List<Course>>((ref) {
 });
 
 /// Picks a single course out of the stream by id (used by the detail screen).
-final courseByIdProvider = Provider.family<Course?, String>((ref, id) {
+final courseByIdProvider = Provider.autoDispose.family<Course?, String>((
+  ref,
+  id,
+) {
   final list = ref.watch(coursesStreamProvider).valueOrNull ?? [];
   for (final c in list) {
     if (c.id == id) return c;
@@ -55,8 +58,12 @@ class CourseController extends StateNotifier<AsyncValue<void>> {
   }) async {
     state = const AsyncValue.loading();
     try {
-      final course =
-          await _repo.update(id, name: name, color: color, icon: icon);
+      final course = await _repo.update(
+        id,
+        name: name,
+        color: color,
+        icon: icon,
+      );
       state = const AsyncValue.data(null);
       return course;
     } catch (e, st) {
@@ -80,5 +87,5 @@ class CourseController extends StateNotifier<AsyncValue<void>> {
 
 final courseControllerProvider =
     StateNotifierProvider<CourseController, AsyncValue<void>>((ref) {
-  return CourseController(ref.watch(courseRepositoryProvider));
-});
+      return CourseController(ref.watch(courseRepositoryProvider));
+    });

@@ -8,9 +8,12 @@ import '../../../core/theme/tokens.dart';
 import '../../../shared/widgets/app_button.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/widgets/app_section_header.dart';
+import '../../../shared/widgets/learning_trace.dart';
 import '../../courses/data/course_model.dart';
 import '../../courses/providers/course_providers.dart';
 import '../../courses/widgets/course_form_sheet.dart';
+import '../../jobs/data/async_job_model.dart';
+import '../../jobs/providers/job_providers.dart';
 import '../data/document_model.dart';
 import '../providers/document_providers.dart';
 import '../providers/upload_state.dart';
@@ -45,43 +48,153 @@ class _UploadScreenState extends ConsumerState<UploadScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(uploadControllerProvider);
     final c = context.colors;
+    final uploadIsActive =
+        state.step == UploadStep.processing && state.errorMessage == null;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => _confirmExit(context, state.step),
-        ),
-        title: Text(_titleFor(state.step)),
-      ),
-      body: SafeArea(
-        child: switch (state.step) {
-          UploadStep.source => const _SourceStep(),
-          UploadStep.assign => const _AssignStep(),
-          UploadStep.processing => _ProcessingStep(
-              preselectedCourseId: widget.preselectedCourseId,
+    return PopScope(
+      canPop: !uploadIsActive,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && uploadIsActive) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Keep Cramly open until this upload is registered.',
+              ),
             ),
-          UploadStep.done => const _DoneStep(),
-        },
+          );
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => _confirmExit(context, state),
+          ),
+          title: Text(_titleFor(state.step)),
+        ),
+        body: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Spacing.xl,
+                  Spacing.sm,
+                  Spacing.xl,
+                  0,
+                ),
+                child: _UploadStageIndicator(step: state.step),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(
+                  Spacing.xl,
+                  Spacing.sm,
+                  Spacing.xl,
+                  0,
+                ),
+                child: LearningTrace(width: 112, height: 20),
+              ),
+              Expanded(
+                child: switch (state.step) {
+                  UploadStep.source => const _SourceStep(),
+                  UploadStep.assign => const _AssignStep(),
+                  UploadStep.processing => _ProcessingStep(
+                    preselectedCourseId: widget.preselectedCourseId,
+                  ),
+                  UploadStep.done => const _DoneStep(),
+                },
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: c.bgCard.withValues(alpha: 0),
       ),
-      backgroundColor: c.bgCard.withValues(alpha: 0),
     );
   }
 
   static String _titleFor(UploadStep step) => switch (step) {
-        UploadStep.source => 'Upload',
-        UploadStep.assign => 'Assign to course',
-        UploadStep.processing => 'Processing',
-        UploadStep.done => 'Done',
-      };
+    UploadStep.source => 'Upload',
+    UploadStep.assign => 'Assign to course',
+    UploadStep.processing => 'Processing',
+    UploadStep.done => 'Done',
+  };
 
-  Future<void> _confirmExit(BuildContext context, UploadStep step) async {
-    if (step == UploadStep.processing) {
+  Future<void> _confirmExit(BuildContext context, UploadState state) async {
+    if (state.step == UploadStep.processing && state.errorMessage == null) {
       // Don't let user back out mid-upload.
       return;
     }
-    ref.read(uploadControllerProvider.notifier).reset();
+    ref
+        .read(uploadControllerProvider.notifier)
+        .reset(courseId: widget.preselectedCourseId);
     if (context.mounted) context.pop();
+  }
+}
+
+class _UploadStageIndicator extends StatelessWidget {
+  const _UploadStageIndicator({required this.step});
+
+  final UploadStep step;
+
+  static const _labels = ['Choose', 'Review', 'Process', 'Ready'];
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final current = step.index;
+    return Semantics(
+      label: 'Upload step ${current + 1} of 4, ${_labels[current]}',
+      child: Row(
+        children: [
+          for (var index = 0; index < _labels.length; index++) ...[
+            Expanded(
+              child: Column(
+                children: [
+                  Container(
+                    width: 24,
+                    height: 24,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: index <= current ? c.primary : c.surfaceSoft,
+                      border: Border.all(
+                        color: index <= current ? c.primary : c.border,
+                      ),
+                    ),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: index <= current ? c.textOnAccent : c.muted,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: Spacing.xs),
+                  Text(
+                    _labels[index],
+                    style: TextStyle(
+                      color: index == current ? c.foreground : c.muted,
+                      fontSize: 11,
+                      fontWeight: index == current
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (index != _labels.length - 1)
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: index < current ? c.primary : c.border,
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -117,23 +230,20 @@ class _SourceStep extends ConsumerWidget {
       ),
       children: [
         Text(
-          'Add study material',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: c.textPrimary,
-            letterSpacing: -0.3,
-          ),
+          'Choose material',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(color: c.textPrimary),
         ),
         const SizedBox(height: 4),
         Text(
-          'Pick a file or paste a URL — we\'ll extract the text.',
+          'Choose a supported file or URL, then review it before uploading.',
           style: TextStyle(fontSize: 14, color: c.textMuted),
         ),
         const SizedBox(height: Spacing.xl),
         InkWell(
           onTap: () => _pickFile(context, ref),
-          borderRadius: const BorderRadius.all(Radius.circular(20)),
+          borderRadius: Radii.cardRadius,
           child: DottedBox(
             color: c.border,
             child: Padding(
@@ -199,7 +309,7 @@ class _SourceStep extends ConsumerWidget {
           ),
           const SizedBox(height: Spacing.lg),
           AppButton(
-            label: 'Continue',
+            label: 'Review and assign',
             fullWidth: true,
             onPressed: () =>
                 ref.read(uploadControllerProvider.notifier).goToAssign(),
@@ -220,14 +330,14 @@ class _SourceStep extends ConsumerWidget {
       ref.read(uploadControllerProvider.notifier).pickedSource(source);
     } on UnsupportedFileException catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message)));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Couldn\'t pick file: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Couldn\'t pick file: $e')));
     }
   }
 
@@ -248,7 +358,8 @@ class _SourceStep extends ConsumerWidget {
       _ => null,
     };
 
-    if (type == DocumentSourceType.youtube || type == DocumentSourceType.webUrl) {
+    if (type == DocumentSourceType.youtube ||
+        type == DocumentSourceType.webUrl) {
       await showUrlInputSheet(context, ref, sourceType: type!);
       return;
     }
@@ -259,7 +370,11 @@ class _SourceStep extends ConsumerWidget {
 }
 
 class _FormatTile {
-  const _FormatTile({required this.label, required this.icon, required this.sub});
+  const _FormatTile({
+    required this.label,
+    required this.icon,
+    required this.sub,
+  });
   final String label;
   final IconData icon;
   final String sub;
@@ -289,10 +404,7 @@ class _FormatTileWidget extends StatelessWidget {
               color: c.textPrimary,
             ),
           ),
-          Text(
-            tile.sub,
-            style: TextStyle(fontSize: 11, color: c.textMuted),
-          ),
+          Text(tile.sub, style: TextStyle(fontSize: 11, color: c.textMuted)),
         ],
       ),
     );
@@ -364,9 +476,13 @@ class _SelectedSourceCard extends StatelessWidget {
         '$size · ${s.sourceType.toJson().toUpperCase()}',
       );
     }
-    final label = s.sourceType == DocumentSourceType.youtube ? 'YouTube' : 'Web';
+    final label = s.sourceType == DocumentSourceType.youtube
+        ? 'YouTube'
+        : 'Web';
     return (
-      s.sourceType == DocumentSourceType.youtube ? Icons.play_circle : Icons.link,
+      s.sourceType == DocumentSourceType.youtube
+          ? Icons.play_circle
+          : Icons.link,
       s.url ?? '',
       label,
     );
@@ -385,8 +501,8 @@ class DottedBox extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: c.bgCard,
-        borderRadius: const BorderRadius.all(Radius.circular(20)),
-        border: Border.all(color: color, width: 2),
+        borderRadius: Radii.cardRadius,
+        border: Border.all(color: color),
       ),
       child: child,
     );
@@ -415,25 +531,47 @@ class _AssignStep extends ConsumerWidget {
       ),
       children: [
         Text(
-          'Assign to course',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: c.textPrimary,
-            letterSpacing: -0.3,
-          ),
+          'Review and assign',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(color: c.textPrimary),
         ),
         const SizedBox(height: 4),
         Text(
-          'Where should this material live?',
+          'Confirm the material and choose where it should live.',
           style: TextStyle(fontSize: 14, color: c.textMuted),
         ),
         const SizedBox(height: Spacing.xl),
+        if (state.source != null) ...[
+          const AppSectionHeader(label: 'Material'),
+          _SelectedSourceCard(
+            source: state.source!,
+            onClear: () {
+              ref.read(uploadControllerProvider.notifier).clearSource();
+            },
+          ),
+          const SizedBox(height: Spacing.xl),
+        ],
+        const AppSectionHeader(label: 'Course'),
         coursesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text(
-            'Failed to load courses: $e',
-            style: TextStyle(color: c.error),
+          error: (_, _) => AppCard(
+            borderColor: c.error.withValues(alpha: 0.35),
+            child: Column(
+              children: [
+                Text(
+                  'Couldn’t load courses.',
+                  style: TextStyle(color: c.textPrimary),
+                ),
+                const SizedBox(height: Spacing.sm),
+                AppButton(
+                  label: 'Try again',
+                  size: AppButtonSize.sm,
+                  variant: AppButtonVariant.secondary,
+                  onPressed: () => ref.invalidate(coursesStreamProvider),
+                ),
+              ],
+            ),
           ),
           data: (courses) {
             if (courses.isEmpty) {
@@ -518,7 +656,7 @@ class _AssignStep extends ConsumerWidget {
           },
         ),
         AppButton(
-          label: 'Start',
+          label: 'Upload and process',
           fullWidth: true,
           onPressed: state.courseId == null
               ? null
@@ -612,14 +750,19 @@ class _ProcessingStepState extends ConsumerState<_ProcessingStep> {
         final ext = (source.fileName ?? '').contains('.')
             ? '.${source.fileName!.split('.').last}'
             : '';
-        final storagePath = repo.buildStoragePath(fileExtension: ext);
+        final storagePath =
+            state.uploadedStoragePath ??
+            repo.buildStoragePath(fileExtension: ext.toLowerCase());
 
-        await for (final progress in repo.uploadFile(
-          file: source.file!,
-          storagePath: storagePath,
-          contentType: source.mimeType,
-        )) {
-          controller.updateUploadProgress(progress.fraction);
+        if (state.uploadedStoragePath == null) {
+          await for (final progress in repo.uploadFile(
+            file: source.file!,
+            storagePath: storagePath,
+            contentType: source.mimeType,
+          )) {
+            controller.updateUploadProgress(progress.fraction);
+          }
+          controller.markStorageUploaded(storagePath);
         }
 
         doc = await repo.createFromFile(
@@ -643,8 +786,14 @@ class _ProcessingStepState extends ConsumerState<_ProcessingStep> {
       controller.markCreated(doc.id);
       controller.markDone();
     } catch (e) {
+      _started = false;
       if (mounted) controller.fail(e.toString());
     }
+  }
+
+  void _retry() {
+    ref.read(uploadControllerProvider.notifier).retryProcessing();
+    _runUploadAndCreate();
   }
 
   @override
@@ -677,7 +826,9 @@ class _ProcessingStepState extends ConsumerState<_ProcessingStep> {
                   width: 100,
                   height: 100,
                   child: CircularProgressIndicator(
-                    value: state.uploadFraction == 0 ? null : state.uploadFraction,
+                    value: state.uploadFraction == 0
+                        ? null
+                        : state.uploadFraction,
                     strokeWidth: 5,
                     color: c.accent,
                     backgroundColor: c.border,
@@ -696,12 +847,16 @@ class _ProcessingStepState extends ConsumerState<_ProcessingStep> {
             ),
           ),
           const SizedBox(height: Spacing.lg),
-          Text(
-            stepLabel,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-              color: c.textPrimary,
+          Semantics(
+            liveRegion: true,
+            label: '$stepLabel, $pct percent',
+            child: Text(
+              stepLabel,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: c.textPrimary,
+              ),
             ),
           ),
           const SizedBox(height: Spacing.sm),
@@ -736,9 +891,10 @@ class _ProcessingStepState extends ConsumerState<_ProcessingStep> {
                   ),
                   const SizedBox(height: Spacing.md),
                   AppButton(
-                    label: 'Try again',
-                    onPressed: () =>
-                        ref.read(uploadControllerProvider.notifier).reset(),
+                    label: state.uploadedStoragePath == null
+                        ? 'Try again'
+                        : 'Retry registration',
+                    onPressed: _retry,
                   ),
                 ],
               ),
@@ -762,12 +918,27 @@ class _DoneStep extends ConsumerWidget {
     final c = context.colors;
     final state = ref.watch(uploadControllerProvider);
     final docId = state.createdDocumentId;
-    final doc = docId == null
+    final docAsync = docId == null
         ? null
-        : ref.watch(documentByIdProvider(docId)).valueOrNull;
+        : ref.watch(documentByIdProvider(docId));
+    final doc = docAsync?.valueOrNull;
+    final extractionJobId = doc?.extractionJobId;
+    final jobAsync = extractionJobId == null || extractionJobId.isEmpty
+        ? null
+        : ref.watch(asyncJobByIdProvider(extractionJobId));
+    final job = jobAsync?.valueOrNull;
 
-    final failed = doc?.status == DocumentStatus.failed;
+    final failed =
+        doc?.status == DocumentStatus.failed ||
+        job?.status == AsyncJobStatus.failed;
+    final listenerError =
+        docAsync?.hasError == true || jobAsync?.hasError == true;
+    final showError = failed || listenerError;
     final ready = doc?.status == DocumentStatus.ready;
+    final extractionProgress = job?.progress ?? 0;
+    final failureMessage = job?.status == AsyncJobStatus.failed
+        ? (job?.errorMessage ?? doc?.errorMessage)
+        : doc?.errorMessage;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -782,19 +953,23 @@ class _DoneStep extends ConsumerWidget {
             width: 72,
             height: 72,
             decoration: BoxDecoration(
-              color: failed ? c.errorSubtle : c.successSubtle,
+              color: showError ? c.errorSubtle : c.successSubtle,
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
             child: Icon(
-              failed ? Icons.error_outline : Icons.check,
+              showError ? Icons.error_outline : Icons.check,
               size: 32,
-              color: failed ? c.error : c.success,
+              color: showError ? c.error : c.success,
             ),
           ),
           const SizedBox(height: Spacing.lg),
           Text(
-            failed ? 'Extraction failed' : (ready ? 'All done' : 'Processing...'),
+            listenerError
+                ? 'Couldn’t refresh progress'
+                : failed
+                ? 'Extraction failed'
+                : (ready ? 'All done' : 'Processing...'),
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w700,
@@ -803,21 +978,42 @@ class _DoneStep extends ConsumerWidget {
           ),
           const SizedBox(height: Spacing.sm),
           Text(
-            failed
-                ? (doc?.errorMessage ?? 'Something went wrong during extraction.')
+            listenerError
+                ? 'The status listener stopped. Check your connection and try again.'
+                : failed
+                ? (failureMessage ?? 'Something went wrong during extraction.')
                 : (ready
-                    ? 'Your study material is ready.'
-                    : 'Hang tight — backend is finishing up.'),
+                      ? 'Your study material is ready.'
+                      : extractionProgress > 0
+                      ? 'Extracting text… $extractionProgress%'
+                      : 'Hang tight — backend is finishing up.'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 14, color: c.textMuted),
           ),
+          if (listenerError) ...[
+            const SizedBox(height: Spacing.lg),
+            AppButton(
+              label: 'Try again',
+              variant: AppButtonVariant.secondary,
+              onPressed: () {
+                if (docId != null) {
+                  ref.invalidate(documentByIdProvider(docId));
+                }
+                if (extractionJobId != null && extractionJobId.isNotEmpty) {
+                  ref.invalidate(asyncJobByIdProvider(extractionJobId));
+                }
+              },
+            ),
+          ],
           const Spacer(),
           if (state.courseId != null)
             AppButton(
               label: 'View in course',
               fullWidth: true,
               onPressed: () {
-                ref.read(uploadControllerProvider.notifier).reset();
+                ref
+                    .read(uploadControllerProvider.notifier)
+                    .reset(courseId: state.courseId);
                 context.go('/library/${state.courseId}');
               },
             ),
@@ -826,8 +1022,9 @@ class _DoneStep extends ConsumerWidget {
             label: 'Upload more',
             variant: AppButtonVariant.secondary,
             fullWidth: true,
-            onPressed: () =>
-                ref.read(uploadControllerProvider.notifier).reset(),
+            onPressed: () => ref
+                .read(uploadControllerProvider.notifier)
+                .reset(courseId: state.courseId),
           ),
         ],
       ),

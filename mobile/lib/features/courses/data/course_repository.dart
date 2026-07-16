@@ -30,11 +30,12 @@ class CourseRepository {
     required String color,
     String? icon,
   }) async {
-    final json = await _api.post('/courses', body: {
-      'name': name,
-      'color': color,
-      'icon': ?icon,
-    }) as Map<String, dynamic>;
+    final json =
+        await _api.post(
+              '/courses',
+              body: {'name': name, 'color': color, 'icon': ?icon},
+            )
+            as Map<String, dynamic>;
     return Course.fromJson(json);
   }
 
@@ -44,11 +45,12 @@ class CourseRepository {
     String? color,
     String? icon,
   }) async {
-    final json = await _api.patch('/courses/$id', body: {
-      'name': ?name,
-      'color': ?color,
-      'icon': ?icon,
-    }) as Map<String, dynamic>;
+    final json =
+        await _api.patch(
+              '/courses/$id',
+              body: {'name': ?name, 'color': ?color, 'icon': ?icon},
+            )
+            as Map<String, dynamic>;
     return Course.fromJson(json);
   }
 

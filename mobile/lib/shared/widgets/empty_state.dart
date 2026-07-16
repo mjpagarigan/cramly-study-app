@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 import 'app_button.dart';
 
@@ -23,48 +24,72 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Spacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: c.accentSubtle,
-                borderRadius: Radii.cardRadius,
-              ),
-              child: Icon(icon, color: c.accent, size: 24),
+    final content = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: c.surfaceSoft,
+              borderRadius: Radii.cardRadius,
             ),
-            const SizedBox(height: Spacing.lg),
-            Text(
+            child: Icon(icon, color: c.primary, size: 23),
+          ),
+          const SizedBox(height: Spacing.lg),
+          Semantics(
+            header: true,
+            child: Text(
               title,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: c.textPrimary,
+              style: AppTheme.display(
+                context,
+                fontSize: 29,
+                fontWeight: FontWeight.w500,
+                height: 1.05,
               ),
             ),
-            const SizedBox(height: Spacing.xs),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: c.textMuted,
-                height: 1.5,
-              ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: Spacing.xl),
-              AppButton(label: actionLabel!, onPressed: onAction),
-            ],
+          ),
+          const SizedBox(height: Spacing.sm),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: c.muted, height: 1.5),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(height: Spacing.xl),
+            AppButton(label: actionLabel!, onPressed: onAction),
           ],
-        ),
+        ],
       ),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const padding = EdgeInsets.symmetric(
+          horizontal: Spacing.xl,
+          vertical: Spacing.xxxl,
+        );
+        if (!constraints.hasBoundedHeight) {
+          return Center(
+            child: Padding(padding: padding, child: content),
+          );
+        }
+        final innerHeight = constraints.maxHeight - padding.vertical;
+        return SingleChildScrollView(
+          padding: padding,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: innerHeight > 0 ? innerHeight : 0,
+            ),
+            child: Center(child: content),
+          ),
+        );
+      },
     );
   }
 }

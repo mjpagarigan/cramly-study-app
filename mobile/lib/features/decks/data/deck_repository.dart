@@ -30,6 +30,17 @@ class DeckRepository {
         .map((snap) => snap.docs.map(Deck.fromFirestore).toList());
   }
 
+  /// Watches every deck owned by [uid], newest first, without requiring an
+  /// additional Firestore index. Sorting client-side also keeps legacy decks
+  /// without `updatedAt` visible.
+  Stream<List<Deck>> watchAll(String uid) {
+    return _collectionForUser(uid).snapshots().map((snap) {
+      final decks = snap.docs.map(Deck.fromFirestore).toList();
+      decks.sort(_newestDeckFirst);
+      return decks;
+    });
+  }
+
   Stream<Deck?> watchById(String uid, String deckId) {
     return _collectionForUser(uid).doc(deckId).snapshots().map((snap) {
       if (!snap.exists) return null;
@@ -135,4 +146,14 @@ class DeckRepository {
   Future<void> deleteCard(String deckId, String cardId) async {
     await _api.delete('/decks/$deckId/cards/$cardId');
   }
+}
+
+int _newestDeckFirst(Deck a, Deck b) {
+  final aDate = a.updatedAt ?? a.createdAt;
+  final bDate = b.updatedAt ?? b.createdAt;
+  if (aDate == null && bDate == null) return a.id.compareTo(b.id);
+  if (aDate == null) return 1;
+  if (bDate == null) return -1;
+  final byDate = bDate.compareTo(aDate);
+  return byDate == 0 ? a.id.compareTo(b.id) : byDate;
 }

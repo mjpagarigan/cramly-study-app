@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/theme/tokens.dart';
 
-/// Wraps content in the standard sheet styling: rounded top, padding, optional title.
-/// Use with `showModalBottomSheet(builder: (_) => BottomSheetShell(...))`.
+/// Standard 18px-top-radius mobile sheet content shell.
 class BottomSheetShell extends StatelessWidget {
   const BottomSheetShell({super.key, this.title, required this.child});
 
@@ -17,33 +17,32 @@ class BottomSheetShell extends StatelessWidget {
     final viewInsets = MediaQuery.viewInsetsOf(context);
 
     return Padding(
-      // Lift content above the keyboard.
       padding: EdgeInsets.only(bottom: viewInsets.bottom),
       child: SafeArea(
         top: false,
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(
-            Spacing.xl,
+            Spacing.page,
             Spacing.sm,
-            Spacing.xl,
+            Spacing.page,
             Spacing.xxl,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (title != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: Spacing.lg),
-                  child: Text(
-                    title!,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: c.textPrimary,
-                    ),
+              if (title != null) ...[
+                Text(
+                  title!,
+                  style: AppTheme.display(
+                    context,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w500,
+                    color: c.foreground,
                   ),
                 ),
+                const SizedBox(height: Spacing.lg),
+              ],
               child,
             ],
           ),
