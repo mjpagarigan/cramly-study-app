@@ -23,6 +23,9 @@ dist/
 pip-log.txt
 pip-delete-this-directory.txt
 
+# --- Node / web ---
+node_modules/
+
 # --- Flutter / Dart ---
 mobile/.dart_tool/
 mobile/.flutter-plugins

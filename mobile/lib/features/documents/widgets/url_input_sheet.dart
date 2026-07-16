@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,20 +48,15 @@ class _UrlInputSheetState extends ConsumerState<_UrlInputSheet> {
 
   void _confirm() {
     final raw = _controller.text.trim();
-    if (raw.isEmpty) {
-      setState(() => _error = 'Paste a URL');
-      return;
-    }
-    if (_isYouTube && !raw.contains('youtu')) {
-      setState(() => _error = 'That doesn\'t look like a YouTube URL');
-      return;
-    }
-    if (!_isYouTube && !(raw.startsWith('http://') || raw.startsWith('https://'))) {
-      setState(() => _error = 'URL must start with http:// or https://');
+    final validationError = validateSourceUrl(raw, widget.sourceType);
+    if (validationError != null) {
+      setState(() => _error = validationError);
       return;
     }
 
-    ref.read(uploadControllerProvider.notifier).pickedSource(
+    ref
+        .read(uploadControllerProvider.notifier)
+        .pickedSource(
           UploadSource.url(url: raw, sourceType: widget.sourceType),
         );
     Navigator.of(context).pop();
@@ -83,6 +80,7 @@ class _UrlInputSheetState extends ConsumerState<_UrlInputSheet> {
           const SizedBox(height: Spacing.md),
           AppInput(
             controller: _controller,
+            label: _isYouTube ? 'YouTube URL or video ID' : 'Article URL',
             placeholder: _isYouTube
                 ? 'https://youtube.com/watch?v=...'
                 : 'https://example.com/article',
@@ -117,4 +115,96 @@ class _UrlInputSheetState extends ConsumerState<_UrlInputSheet> {
       ),
     );
   }
+}
+
+String? validateSourceUrl(String raw, DocumentSourceType sourceType) {
+  final value = raw.trim();
+  if (value.isEmpty) return 'Paste a URL';
+
+  if (sourceType == DocumentSourceType.youtube) {
+    if (RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(value)) return null;
+
+    final candidate = value.contains('://') ? value : 'https://$value';
+    final uri = Uri.tryParse(candidate);
+    if (uri == null || uri.host.isEmpty) {
+      return 'Enter a valid YouTube link or 11-character video ID';
+    }
+    final host = uri.host.toLowerCase();
+    final segments = uri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    String id = '';
+    if (host == 'youtu.be' && segments.length == 1) {
+      id = segments.single;
+    } else if (host == 'youtube.com' || host.endsWith('.youtube.com')) {
+      if (uri.path == '/watch') {
+        id = uri.queryParameters['v'] ?? '';
+      } else if (segments.length == 2 &&
+          const {'shorts', 'embed', 'v'}.contains(segments.first)) {
+        id = segments[1];
+      }
+    }
+    if (!RegExp(r'^[A-Za-z0-9_-]{11}$').hasMatch(id)) {
+      return 'Enter a YouTube watch, Shorts, embed, youtu.be link, or video ID';
+    }
+    return null;
+  }
+
+  final uri = Uri.tryParse(value);
+  if (uri == null ||
+      (uri.scheme != 'http' && uri.scheme != 'https') ||
+      uri.host.isEmpty ||
+      _isPrivateHost(uri.host)) {
+    return 'Enter a complete public http:// or https:// URL';
+  }
+  return null;
+}
+
+bool _isPrivateHost(String rawHost) {
+  final host = rawHost.toLowerCase();
+  if (host == 'localhost' ||
+      host.endsWith('.localhost') ||
+      host.endsWith('.local')) {
+    return true;
+  }
+
+  final address = InternetAddress.tryParse(host);
+  if (address == null) return false;
+  final bytes = address.rawAddress;
+  if (bytes.length == 4) return _isPrivateIpv4(bytes);
+  if (bytes.length != 16) return true;
+
+  final unspecified = bytes.every((byte) => byte == 0);
+  final uniqueLocal = (bytes[0] & 0xfe) == 0xfc;
+  final siteLocal = bytes[0] == 0xfe && (bytes[1] & 0xc0) == 0xc0;
+  final mappedIpv4 =
+      bytes.take(10).every((byte) => byte == 0) &&
+      bytes[10] == 0xff &&
+      bytes[11] == 0xff;
+  final compatibleIpv4 = bytes.take(12).every((byte) => byte == 0);
+  if (unspecified ||
+      address.isLoopback ||
+      address.isLinkLocal ||
+      address.isMulticast ||
+      uniqueLocal ||
+      siteLocal) {
+    return true;
+  }
+  return (mappedIpv4 || compatibleIpv4)
+      ? _isPrivateIpv4(bytes.sublist(12))
+      : false;
+}
+
+bool _isPrivateIpv4(List<int> octets) {
+  final a = octets[0];
+  final b = octets[1];
+  return a == 0 ||
+      a == 10 ||
+      a == 127 ||
+      (a == 100 && b >= 64 && b <= 127) ||
+      (a == 169 && b == 254) ||
+      (a == 172 && b >= 16 && b <= 31) ||
+      (a == 192 && b == 168) ||
+      (a == 198 && (b == 18 || b == 19)) ||
+      a >= 224;
 }

@@ -19,31 +19,35 @@ class AppSectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Padding(
-      padding: const EdgeInsets.only(bottom: Spacing.md),
+      padding: const EdgeInsets.only(bottom: 11),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-              color: c.textMuted,
-            ),
-          ),
-          if (actionLabel != null && onAction != null)
-            GestureDetector(
-              onTap: onAction,
+          Expanded(
+            child: Semantics(
+              header: true,
               child: Text(
-                actionLabel!,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: c.accent,
+                label,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 18,
+                  letterSpacing: -0.25,
+                  color: c.foreground,
                 ),
               ),
             ),
+          ),
+          if (actionLabel != null && onAction != null) ...[
+            const SizedBox(width: Spacing.md),
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: const EdgeInsets.symmetric(horizontal: Spacing.xs),
+                tapTargetSize: MaterialTapTargetSize.padded,
+              ),
+              child: Text(actionLabel!),
+            ),
+          ],
         ],
       ),
     );

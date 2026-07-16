@@ -20,7 +20,7 @@ class ApiException implements Exception {
 
 class ApiClient {
   ApiClient({required this.baseUrl, http.Client? httpClient})
-      : _http = httpClient ?? http.Client();
+    : _http = httpClient ?? http.Client();
 
   final String baseUrl;
   final http.Client _http;
@@ -42,19 +42,21 @@ class ApiClient {
   Future<dynamic> get(String path) =>
       _send(() async => _http.get(_uri(path), headers: await _headers()));
 
-  Future<dynamic> post(String path, {Object? body}) =>
-      _send(() async => _http.post(
-            _uri(path),
-            headers: await _headers(),
-            body: body == null ? null : jsonEncode(body),
-          ));
+  Future<dynamic> post(String path, {Object? body}) => _send(
+    () async => _http.post(
+      _uri(path),
+      headers: await _headers(),
+      body: body == null ? null : jsonEncode(body),
+    ),
+  );
 
-  Future<dynamic> patch(String path, {Object? body}) =>
-      _send(() async => _http.patch(
-            _uri(path),
-            headers: await _headers(),
-            body: body == null ? null : jsonEncode(body),
-          ));
+  Future<dynamic> patch(String path, {Object? body}) => _send(
+    () async => _http.patch(
+      _uri(path),
+      headers: await _headers(),
+      body: body == null ? null : jsonEncode(body),
+    ),
+  );
 
   Future<dynamic> delete(String path) =>
       _send(() async => _http.delete(_uri(path), headers: await _headers()));
@@ -76,14 +78,14 @@ class ApiClient {
   }
 
   String _statusMessage(int code) => switch (code) {
-        400 => 'Bad request',
-        401 => 'Unauthorized',
-        403 => 'Forbidden',
-        404 => 'Not found',
-        429 => 'Rate limited',
-        >= 500 => 'Server error',
-        _ => 'Request failed',
-      };
+    400 => 'Bad request',
+    401 => 'Unauthorized',
+    403 => 'Forbidden',
+    404 => 'Not found',
+    429 => 'Rate limited',
+    >= 500 => 'Server error',
+    _ => 'Request failed',
+  };
 }
 
 /// Default base URL per platform.

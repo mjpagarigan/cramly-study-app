@@ -330,6 +330,7 @@ mixin _$Document {
   int? get pageCount => throw _privateConstructorUsedError;
   int get wordCount => throw _privateConstructorUsedError;
   String? get extractedTextPath => throw _privateConstructorUsedError;
+  String? get extractionJobId => throw _privateConstructorUsedError;
   String? get errorMessage => throw _privateConstructorUsedError;
   GeneratedAssets get generatedAssets => throw _privateConstructorUsedError;
   DateTime? get uploadedAt => throw _privateConstructorUsedError;
@@ -361,6 +362,7 @@ abstract class $DocumentCopyWith<$Res> {
     int? pageCount,
     int wordCount,
     String? extractedTextPath,
+    String? extractionJobId,
     String? errorMessage,
     GeneratedAssets generatedAssets,
     DateTime? uploadedAt,
@@ -398,6 +400,7 @@ class _$DocumentCopyWithImpl<$Res, $Val extends Document>
     Object? pageCount = freezed,
     Object? wordCount = null,
     Object? extractedTextPath = freezed,
+    Object? extractionJobId = freezed,
     Object? errorMessage = freezed,
     Object? generatedAssets = null,
     Object? uploadedAt = freezed,
@@ -457,6 +460,10 @@ class _$DocumentCopyWithImpl<$Res, $Val extends Document>
                 ? _value.extractedTextPath
                 : extractedTextPath // ignore: cast_nullable_to_non_nullable
                       as String?,
+            extractionJobId: freezed == extractionJobId
+                ? _value.extractionJobId
+                : extractionJobId // ignore: cast_nullable_to_non_nullable
+                      as String?,
             errorMessage: freezed == errorMessage
                 ? _value.errorMessage
                 : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -512,6 +519,7 @@ abstract class _$$DocumentImplCopyWith<$Res>
     int? pageCount,
     int wordCount,
     String? extractedTextPath,
+    String? extractionJobId,
     String? errorMessage,
     GeneratedAssets generatedAssets,
     DateTime? uploadedAt,
@@ -549,6 +557,7 @@ class __$$DocumentImplCopyWithImpl<$Res>
     Object? pageCount = freezed,
     Object? wordCount = null,
     Object? extractedTextPath = freezed,
+    Object? extractionJobId = freezed,
     Object? errorMessage = freezed,
     Object? generatedAssets = null,
     Object? uploadedAt = freezed,
@@ -608,6 +617,10 @@ class __$$DocumentImplCopyWithImpl<$Res>
             ? _value.extractedTextPath
             : extractedTextPath // ignore: cast_nullable_to_non_nullable
                   as String?,
+        extractionJobId: freezed == extractionJobId
+            ? _value.extractionJobId
+            : extractionJobId // ignore: cast_nullable_to_non_nullable
+                  as String?,
         errorMessage: freezed == errorMessage
             ? _value.errorMessage
             : errorMessage // ignore: cast_nullable_to_non_nullable
@@ -646,6 +659,7 @@ class _$DocumentImpl implements _Document {
     this.pageCount,
     this.wordCount = 0,
     this.extractedTextPath,
+    this.extractionJobId,
     this.errorMessage,
     this.generatedAssets = const GeneratedAssets(),
     this.uploadedAt,
@@ -680,6 +694,8 @@ class _$DocumentImpl implements _Document {
   @override
   final String? extractedTextPath;
   @override
+  final String? extractionJobId;
+  @override
   final String? errorMessage;
   @override
   @JsonKey()
@@ -691,7 +707,7 @@ class _$DocumentImpl implements _Document {
 
   @override
   String toString() {
-    return 'Document(id: $id, courseId: $courseId, sourceType: $sourceType, title: $title, status: $status, fileName: $fileName, fileSize: $fileSize, mimeType: $mimeType, storagePath: $storagePath, sourceUrl: $sourceUrl, pageCount: $pageCount, wordCount: $wordCount, extractedTextPath: $extractedTextPath, errorMessage: $errorMessage, generatedAssets: $generatedAssets, uploadedAt: $uploadedAt, extractedAt: $extractedAt)';
+    return 'Document(id: $id, courseId: $courseId, sourceType: $sourceType, title: $title, status: $status, fileName: $fileName, fileSize: $fileSize, mimeType: $mimeType, storagePath: $storagePath, sourceUrl: $sourceUrl, pageCount: $pageCount, wordCount: $wordCount, extractedTextPath: $extractedTextPath, extractionJobId: $extractionJobId, errorMessage: $errorMessage, generatedAssets: $generatedAssets, uploadedAt: $uploadedAt, extractedAt: $extractedAt)';
   }
 
   @override
@@ -722,6 +738,8 @@ class _$DocumentImpl implements _Document {
                 other.wordCount == wordCount) &&
             (identical(other.extractedTextPath, extractedTextPath) ||
                 other.extractedTextPath == extractedTextPath) &&
+            (identical(other.extractionJobId, extractionJobId) ||
+                other.extractionJobId == extractionJobId) &&
             (identical(other.errorMessage, errorMessage) ||
                 other.errorMessage == errorMessage) &&
             (identical(other.generatedAssets, generatedAssets) ||
@@ -748,6 +766,7 @@ class _$DocumentImpl implements _Document {
     pageCount,
     wordCount,
     extractedTextPath,
+    extractionJobId,
     errorMessage,
     generatedAssets,
     uploadedAt,
@@ -778,6 +797,7 @@ abstract class _Document implements Document {
     final int? pageCount,
     final int wordCount,
     final String? extractedTextPath,
+    final String? extractionJobId,
     final String? errorMessage,
     final GeneratedAssets generatedAssets,
     final DateTime? uploadedAt,
@@ -810,6 +830,8 @@ abstract class _Document implements Document {
   int get wordCount;
   @override
   String? get extractedTextPath;
+  @override
+  String? get extractionJobId;
   @override
   String? get errorMessage;
   @override

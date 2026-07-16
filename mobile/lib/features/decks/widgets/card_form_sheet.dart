@@ -73,6 +73,13 @@ class _CardFormSheetState extends ConsumerState<_CardFormSheet> {
       setState(() => _error = 'Front and back are required');
       return;
     }
+    if (widget.existing != null && _clearsExistingOptionalField()) {
+      setState(() {
+        _error =
+            'The current API cannot clear an existing hint, explanation, or topic. Keep a value or cancel this edit.';
+      });
+      return;
+    }
 
     setState(() {
       _busy = true;
@@ -108,6 +115,16 @@ class _CardFormSheetState extends ConsumerState<_CardFormSheet> {
         _error = e.toString();
       });
     }
+  }
+
+  bool _clearsExistingOptionalField() {
+    final existing = widget.existing!;
+    return ((existing.hint ?? '').isNotEmpty &&
+            _hintController.text.trim().isEmpty) ||
+        ((existing.explanation ?? '').isNotEmpty &&
+            _explanationController.text.trim().isEmpty) ||
+        ((existing.topic ?? '').isNotEmpty &&
+            _topicController.text.trim().isEmpty);
   }
 
   @override
@@ -205,6 +222,7 @@ class _SheetField extends StatelessWidget {
       style: TextStyle(color: c.textPrimary, fontSize: 15),
       cursorColor: c.accent,
       decoration: InputDecoration(
+        labelText: placeholder,
         hintText: placeholder,
         hintStyle: TextStyle(color: c.textMuted, fontSize: 15),
         filled: true,

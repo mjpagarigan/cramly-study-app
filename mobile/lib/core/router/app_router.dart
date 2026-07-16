@@ -32,8 +32,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final atSplash = loc == '/splash';
       final atLogin = loc == '/login';
 
+      // A restoration failure is rendered with a retry action on Splash.
+      if (authState.hasError && !authState.hasValue) {
+        return atSplash ? null : '/splash';
+      }
+
       // Auth state hasn't been restored from disk yet — sit on splash.
-      if (authState.isLoading || !authState.hasValue) {
+      if (!authState.hasValue) {
         return atSplash ? null : '/splash';
       }
 
@@ -58,8 +63,10 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (_, _, navigationShell) =>
-            MainShell(navigationShell: navigationShell),
+        builder: (_, state, navigationShell) => MainShell(
+          navigationShell: navigationShell,
+          location: state.uri.path,
+        ),
         branches: [
           StatefulShellBranch(
             routes: [

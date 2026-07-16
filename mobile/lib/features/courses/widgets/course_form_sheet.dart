@@ -10,20 +10,17 @@ import '../data/course_model.dart';
 import '../providers/course_providers.dart';
 
 const courseColorPalette = <String>[
-  '#E8A84C', // amber
-  '#4CC8E8', // cyan
-  '#5CB87A', // green
-  '#E85C5C', // red
-  '#B47CE8', // purple
-  '#E87CB4', // pink
-  '#E8845C', // orange
-  '#5CE8B4', // teal
+  '#477966',
+  '#486F91',
+  '#9B675F',
+  '#7C6896',
+  '#9B7B3E',
+  '#6C7B55',
+  '#556D72',
+  '#825B69',
 ];
 
-Future<Course?> showCourseFormSheet(
-  BuildContext context, {
-  Course? existing,
-}) {
+Future<Course?> showCourseFormSheet(BuildContext context, {Course? existing}) {
   return showModalBottomSheet<Course?>(
     context: context,
     isScrollControlled: true,
@@ -103,6 +100,7 @@ class _CourseFormSheetState extends ConsumerState<_CourseFormSheet> {
         children: [
           AppInput(
             controller: _nameController,
+            label: 'Course name',
             placeholder: 'e.g. Organic Chemistry',
             autofocus: !isEdit,
             textInputAction: TextInputAction.done,
@@ -124,37 +122,40 @@ class _CourseFormSheetState extends ConsumerState<_CourseFormSheet> {
             runSpacing: Spacing.md,
             children: [
               for (final hex in courseColorPalette)
-                GestureDetector(
-                  onTap: () => setState(() => _color = hex),
-                  child: AnimatedContainer(
-                    duration: AppDurations.fast,
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _hexToColor(hex),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: _color == hex ? c.textPrimary : Colors.transparent,
-                        width: 2,
+                Semantics(
+                  button: true,
+                  selected: _color == hex,
+                  label: 'Course color $hex',
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => setState(() => _color = hex),
+                    child: AnimatedContainer(
+                      duration: context.reduceMotion
+                          ? Duration.zero
+                          : AppDurations.fast,
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: _hexToColor(hex),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _color == hex
+                              ? c.textPrimary
+                              : Colors.transparent,
+                          width: 2,
+                        ),
                       ),
+                      child: _color == hex
+                          ? Icon(Icons.check, size: 18, color: c.textOnAccent)
+                          : null,
                     ),
-                    child: _color == hex
-                        ? Icon(
-                            Icons.check,
-                            size: 18,
-                            color: c.textOnAccent,
-                          )
-                        : null,
                   ),
                 ),
             ],
           ),
           if (_error != null) ...[
             const SizedBox(height: Spacing.md),
-            Text(
-              _error!,
-              style: TextStyle(color: c.error, fontSize: 13),
-            ),
+            Text(_error!, style: TextStyle(color: c.error, fontSize: 13)),
           ],
           const SizedBox(height: Spacing.xl),
           Row(

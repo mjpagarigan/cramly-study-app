@@ -22,14 +22,36 @@ class SummaryRepository {
     });
   }
 
+  /// Watches every summary owned by [uid], newest first. Client-side sorting
+  /// avoids adding an index and keeps rows without `updatedAt` available.
+  Stream<List<Summary>> watchAll(String uid) {
+    return _collectionForUser(uid).snapshots().map((snap) {
+      final summaries = snap.docs.map(Summary.fromFirestore).toList();
+      summaries.sort(_newestSummaryFirst);
+      return summaries;
+    });
+  }
+
   Future<SummaryGenerationResult> generateSummary({
     required String documentId,
     required SummaryDepth depth,
   }) async {
-    final json = await _api.post('/documents/$documentId/generate', body: {
-      'generator': 'summary',
-      'depth': depth.toJson(),
-    }) as Map<String, dynamic>;
+    final json =
+        await _api.post(
+              '/documents/$documentId/generate',
+              body: {'generator': 'summary', 'depth': depth.toJson()},
+            )
+            as Map<String, dynamic>;
     return SummaryGenerationResult.fromJson(json);
   }
+}
+
+int _newestSummaryFirst(Summary a, Summary b) {
+  final aDate = a.updatedAt ?? a.createdAt;
+  final bDate = b.updatedAt ?? b.createdAt;
+  if (aDate == null && bDate == null) return a.id.compareTo(b.id);
+  if (aDate == null) return 1;
+  if (bDate == null) return -1;
+  final byDate = bDate.compareTo(aDate);
+  return byDate == 0 ? a.id.compareTo(b.id) : byDate;
 }

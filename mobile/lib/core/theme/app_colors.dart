@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
-/// Custom palette beyond what `ColorScheme` covers — accents, card surfaces,
-/// muted text variants, etc. Mirrors `theme.jsx` from the Front End System.
+/// Semantic colors for Cramly's Learning Trace identity.
+///
+/// The original field names remain available as compatibility
+/// aliases. New code should prefer the semantic roles near the bottom of the
+/// class (`background`, `surface`, `foreground`, `primary`, and `poppy`).
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
   const AppColors({
+    required this.background,
     required this.bgCard,
     required this.bgCardHover,
     required this.bgElevated,
@@ -18,14 +22,20 @@ class AppColors extends ThemeExtension<AppColors> {
     required this.accent,
     required this.accentHover,
     required this.accentSubtle,
+    required this.primaryDeep,
+    required this.poppy,
+    required this.poppySubtle,
     required this.secondary,
     required this.secondarySubtle,
     required this.success,
     required this.successSubtle,
+    required this.warning,
+    required this.warningSubtle,
     required this.error,
     required this.errorSubtle,
   });
 
+  final Color background;
   final Color bgCard;
   final Color bgCardHover;
   final Color bgElevated;
@@ -35,64 +45,94 @@ class AppColors extends ThemeExtension<AppColors> {
   final Color textPrimary;
   final Color textSecondary;
   final Color textMuted;
-  // Used on top of solid accent surfaces (button labels, FAB icons).
   final Color textOnAccent;
+
+  /// Compatibility name for the primary evergreen action color.
   final Color accent;
   final Color accentHover;
   final Color accentSubtle;
+
+  final Color primaryDeep;
+  final Color poppy;
+  final Color poppySubtle;
   final Color secondary;
   final Color secondarySubtle;
   final Color success;
   final Color successSubtle;
+  final Color warning;
+  final Color warningSubtle;
   final Color error;
   final Color errorSubtle;
 
+  // Preferred semantic names.
+  Color get surface => bgCard;
+  Color get surfaceSoft => bgCardHover;
+  Color get surfaceRaised => bgElevated;
+  Color get foreground => textPrimary;
+  Color get muted => textMuted;
+  Color get primary => accent;
+  Color get danger => error;
+  Color get dangerSubtle => errorSubtle;
+
   static const dark = AppColors(
-    bgCard: Color(0xFF171E30),
-    bgCardHover: Color(0xFF1C2438),
-    bgElevated: Color(0xFF1E2538),
-    bgInput: Color(0xFF1A2235),
-    border: Color(0x0FFFFFFF),
-    borderSubtle: Color(0x08FFFFFF),
-    textPrimary: Color(0xFFE0DFE4),
-    textSecondary: Color(0xFF8890A8),
-    textMuted: Color(0xFF6B7394),
-    textOnAccent: Color(0xFF0F1523),
-    accent: Color(0xFFE8A84C),
-    accentHover: Color(0xFFF0B860),
-    accentSubtle: Color(0x1FE8A84C),
-    secondary: Color(0xFF4CC8E8),
-    secondarySubtle: Color(0x1F4CC8E8),
-    success: Color(0xFF5CB87A),
-    successSubtle: Color(0x1F5CB87A),
-    error: Color(0xFFE85C5C),
-    errorSubtle: Color(0x1FE85C5C),
+    background: Color(0xFF101713),
+    bgCard: Color(0xFF17211D),
+    bgCardHover: Color(0xFF213029),
+    bgElevated: Color(0xFF1D2924),
+    bgInput: Color(0xFF17211D),
+    border: Color(0x21EDF3F0),
+    borderSubtle: Color(0x12EDF3F0),
+    textPrimary: Color(0xFFEDF3F0),
+    textSecondary: Color(0xFFC5D3CC),
+    textMuted: Color(0xFFA6B6AE),
+    textOnAccent: Color(0xFF101713),
+    accent: Color(0xFF78B69E),
+    accentHover: Color(0xFF91C6B1),
+    accentSubtle: Color(0x2478B69E),
+    primaryDeep: Color(0xFF0D2D25),
+    poppy: Color(0xFFEF7464),
+    poppySubtle: Color(0x24EF7464),
+    secondary: Color(0xFF527D6C),
+    secondarySubtle: Color(0x2E527D6C),
+    success: Color(0xFF74C3A0),
+    successSubtle: Color(0x2474C3A0),
+    warning: Color(0xFFDDB36E),
+    warningSubtle: Color(0x24DDB36E),
+    error: Color(0xFFF18A81),
+    errorSubtle: Color(0x24F18A81),
   );
 
   static const light = AppColors(
+    background: Color(0xFFF4F7F5),
     bgCard: Color(0xFFFFFFFF),
-    bgCardHover: Color(0xFFF9F8F6),
+    bgCardHover: Color(0xFFE8EFEB),
     bgElevated: Color(0xFFFFFFFF),
-    bgInput: Color(0xFFEEECEA),
-    border: Color(0x14000000),
-    borderSubtle: Color(0x0A000000),
-    textPrimary: Color(0xFF1A1E2E),
-    textSecondary: Color(0xFF6B6860),
-    textMuted: Color(0xFF9A9890),
+    bgInput: Color(0xFFFFFFFF),
+    border: Color(0xFFCDD8D1),
+    borderSubtle: Color(0x8FCDD8D1),
+    textPrimary: Color(0xFF17211D),
+    textSecondary: Color(0xFF435249),
+    textMuted: Color(0xFF5F6E67),
     textOnAccent: Color(0xFFFFFFFF),
-    accent: Color(0xFFD49540),
-    accentHover: Color(0xFFC08530),
-    accentSubtle: Color(0x1FD49540),
-    secondary: Color(0xFF3AA8C4),
-    secondarySubtle: Color(0x1F3AA8C4),
-    success: Color(0xFF4A9E65),
-    successSubtle: Color(0x1F4A9E65),
-    error: Color(0xFFD04848),
-    errorSubtle: Color(0x1FD04848),
+    accent: Color(0xFF24594B),
+    accentHover: Color(0xFF163A31),
+    accentSubtle: Color(0x1F24594B),
+    primaryDeep: Color(0xFF163A31),
+    poppy: Color(0xFFC43F32),
+    poppySubtle: Color(0x1FC43F32),
+    secondary: Color(0xFFA9C8BA),
+    secondarySubtle: Color(0x4DA9C8BA),
+    success: Color(0xFF2F755C),
+    successSubtle: Color(0x1F2F755C),
+    warning: Color(0xFF9B681F),
+    warningSubtle: Color(0x1F9B681F),
+    error: Color(0xFFB63D35),
+    errorSubtle: Color(0x1FB63D35),
   );
 
   @override
   AppColors copyWith({
+    Color? background,
     Color? bgCard,
     Color? bgCardHover,
     Color? bgElevated,
@@ -106,14 +146,20 @@ class AppColors extends ThemeExtension<AppColors> {
     Color? accent,
     Color? accentHover,
     Color? accentSubtle,
+    Color? primaryDeep,
+    Color? poppy,
+    Color? poppySubtle,
     Color? secondary,
     Color? secondarySubtle,
     Color? success,
     Color? successSubtle,
+    Color? warning,
+    Color? warningSubtle,
     Color? error,
     Color? errorSubtle,
   }) {
     return AppColors(
+      background: background ?? this.background,
       bgCard: bgCard ?? this.bgCard,
       bgCardHover: bgCardHover ?? this.bgCardHover,
       bgElevated: bgElevated ?? this.bgElevated,
@@ -127,10 +173,15 @@ class AppColors extends ThemeExtension<AppColors> {
       accent: accent ?? this.accent,
       accentHover: accentHover ?? this.accentHover,
       accentSubtle: accentSubtle ?? this.accentSubtle,
+      primaryDeep: primaryDeep ?? this.primaryDeep,
+      poppy: poppy ?? this.poppy,
+      poppySubtle: poppySubtle ?? this.poppySubtle,
       secondary: secondary ?? this.secondary,
       secondarySubtle: secondarySubtle ?? this.secondarySubtle,
       success: success ?? this.success,
       successSubtle: successSubtle ?? this.successSubtle,
+      warning: warning ?? this.warning,
+      warningSubtle: warningSubtle ?? this.warningSubtle,
       error: error ?? this.error,
       errorSubtle: errorSubtle ?? this.errorSubtle,
     );
@@ -140,6 +191,7 @@ class AppColors extends ThemeExtension<AppColors> {
   AppColors lerp(ThemeExtension<AppColors>? other, double t) {
     if (other is! AppColors) return this;
     return AppColors(
+      background: Color.lerp(background, other.background, t)!,
       bgCard: Color.lerp(bgCard, other.bgCard, t)!,
       bgCardHover: Color.lerp(bgCardHover, other.bgCardHover, t)!,
       bgElevated: Color.lerp(bgElevated, other.bgElevated, t)!,
@@ -153,11 +205,15 @@ class AppColors extends ThemeExtension<AppColors> {
       accent: Color.lerp(accent, other.accent, t)!,
       accentHover: Color.lerp(accentHover, other.accentHover, t)!,
       accentSubtle: Color.lerp(accentSubtle, other.accentSubtle, t)!,
+      primaryDeep: Color.lerp(primaryDeep, other.primaryDeep, t)!,
+      poppy: Color.lerp(poppy, other.poppy, t)!,
+      poppySubtle: Color.lerp(poppySubtle, other.poppySubtle, t)!,
       secondary: Color.lerp(secondary, other.secondary, t)!,
-      secondarySubtle:
-          Color.lerp(secondarySubtle, other.secondarySubtle, t)!,
+      secondarySubtle: Color.lerp(secondarySubtle, other.secondarySubtle, t)!,
       success: Color.lerp(success, other.success, t)!,
       successSubtle: Color.lerp(successSubtle, other.successSubtle, t)!,
+      warning: Color.lerp(warning, other.warning, t)!,
+      warningSubtle: Color.lerp(warningSubtle, other.warningSubtle, t)!,
       error: Color.lerp(error, other.error, t)!,
       errorSubtle: Color.lerp(errorSubtle, other.errorSubtle, t)!,
     );

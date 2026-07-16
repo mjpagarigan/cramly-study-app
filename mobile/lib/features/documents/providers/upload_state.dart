@@ -15,19 +15,21 @@ class UploadSource {
     required this.fileSize,
     required this.sourceType,
     this.mimeType,
-  })  : url = null,
-        assert(sourceType != DocumentSourceType.youtube &&
-            sourceType != DocumentSourceType.webUrl);
+  }) : url = null,
+       assert(
+         sourceType != DocumentSourceType.youtube &&
+             sourceType != DocumentSourceType.webUrl,
+       );
 
-  const UploadSource.url({
-    required this.url,
-    required this.sourceType,
-  })  : file = null,
-        fileName = null,
-        fileSize = null,
-        mimeType = null,
-        assert(sourceType == DocumentSourceType.youtube ||
-            sourceType == DocumentSourceType.webUrl);
+  const UploadSource.url({required this.url, required this.sourceType})
+    : file = null,
+      fileName = null,
+      fileSize = null,
+      mimeType = null,
+      assert(
+        sourceType == DocumentSourceType.youtube ||
+            sourceType == DocumentSourceType.webUrl,
+      );
 
   final File? file;
   final String? fileName;
@@ -46,6 +48,7 @@ class UploadState {
     this.courseId,
     this.uploadFraction = 0,
     this.createdDocumentId,
+    this.uploadedStoragePath,
     this.errorMessage,
   });
 
@@ -54,6 +57,10 @@ class UploadState {
   final String? courseId;
   final double uploadFraction;
   final String? createdDocumentId;
+
+  /// Retained after a successful Storage upload so a failed API registration
+  /// can be retried without uploading the same object again.
+  final String? uploadedStoragePath;
   final String? errorMessage;
 
   UploadState copyWith({
@@ -62,6 +69,7 @@ class UploadState {
     String? courseId,
     double? uploadFraction,
     String? createdDocumentId,
+    String? uploadedStoragePath,
     String? errorMessage,
     bool clearError = false,
   }) {
@@ -71,6 +79,7 @@ class UploadState {
       courseId: courseId ?? this.courseId,
       uploadFraction: uploadFraction ?? this.uploadFraction,
       createdDocumentId: createdDocumentId ?? this.createdDocumentId,
+      uploadedStoragePath: uploadedStoragePath ?? this.uploadedStoragePath,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
@@ -84,7 +93,7 @@ class UploadController extends StateNotifier<UploadState> {
   }
 
   void clearSource() {
-    state = const UploadState();
+    state = UploadState(courseId: state.courseId);
   }
 
   void goToAssign() {
@@ -108,6 +117,10 @@ class UploadController extends StateNotifier<UploadState> {
     state = state.copyWith(createdDocumentId: documentId);
   }
 
+  void markStorageUploaded(String storagePath) {
+    state = state.copyWith(uploadedStoragePath: storagePath, uploadFraction: 1);
+  }
+
   void markDone() {
     state = state.copyWith(step: UploadStep.done);
   }
@@ -116,12 +129,16 @@ class UploadController extends StateNotifier<UploadState> {
     state = state.copyWith(errorMessage: message);
   }
 
-  void reset() {
-    state = const UploadState();
+  void retryProcessing() {
+    state = state.copyWith(step: UploadStep.processing, clearError: true);
+  }
+
+  void reset({String? courseId}) {
+    state = UploadState(courseId: courseId);
   }
 }
 
 final uploadControllerProvider =
     StateNotifierProvider.autoDispose<UploadController, UploadState>((ref) {
-  return UploadController();
-});
+      return UploadController();
+    });

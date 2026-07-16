@@ -7,12 +7,12 @@ enum AsyncJobStatus {
   failed;
 
   static AsyncJobStatus fromJson(String raw) => switch (raw) {
-        'queued' => AsyncJobStatus.queued,
-        'processing' => AsyncJobStatus.processing,
-        'completed' => AsyncJobStatus.completed,
-        'failed' => AsyncJobStatus.failed,
-        _ => AsyncJobStatus.queued,
-      };
+    'queued' => AsyncJobStatus.queued,
+    'processing' => AsyncJobStatus.processing,
+    'completed' => AsyncJobStatus.completed,
+    'failed' => AsyncJobStatus.failed,
+    _ => AsyncJobStatus.queued,
+  };
 }
 
 class AsyncJob {
@@ -36,9 +36,7 @@ class AsyncJob {
   final DateTime? startedAt;
   final DateTime? completedAt;
 
-  factory AsyncJob.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> snap,
-  ) {
+  factory AsyncJob.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snap) {
     final data = snap.data() ?? const {};
     return AsyncJob(
       id: snap.id,

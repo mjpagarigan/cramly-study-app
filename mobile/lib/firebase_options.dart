@@ -63,7 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '239883164307',
     projectId: 'cramly-cd9b5',
     storageBucket: 'cramly-cd9b5.firebasestorage.app',
-    iosClientId: '239883164307-9iq2dpmg4asmq39cqa97of6tf2d75q8a.apps.googleusercontent.com',
+    iosClientId:
+        '239883164307-9iq2dpmg4asmq39cqa97of6tf2d75q8a.apps.googleusercontent.com',
     iosBundleId: 'com.cramly.app',
   );
 }

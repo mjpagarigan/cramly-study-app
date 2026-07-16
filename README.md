@@ -1,6 +1,6 @@
 # Cramly
 
-Mobile study app for college students. Turns uploaded course materials into AI-generated flashcards, quizzes, study guides, summaries, and two-speaker podcasts. Spaced repetition (SM-2), voice quiz mode, and analytics on top.
+Study app for college students with Flutter and responsive web clients. It turns uploaded course material into extracted text, flashcard decks, and summaries. Quizzes, podcasts, spaced repetition, voice study, and analytics are planned but are not active in this build.
 
 Spec: [docs/app_specification.md](docs/app_specification.md)
 
@@ -9,6 +9,7 @@ Spec: [docs/app_specification.md](docs/app_specification.md)
 ```text
 cramly-study-app/
 |- mobile/          # Flutter app
+|- web/             # React + TypeScript + Vite client
 |- backend/
 |  |- api/          # FastAPI service
 |  |- worker/       # Background worker (Render Background Worker)
@@ -53,6 +54,10 @@ python -m worker.worker
 
 See [docs/SETUP.md](docs/SETUP.md) for the full local setup flow.
 
+### Web
+
+See [web/README.md](web/README.md) for Firebase Web app setup, Vite environment variables, local commands, and SPA hosting requirements.
+
 ## Deploy
 
 ### Backend (Render)
@@ -81,7 +86,7 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 - [x] Sprint 2 - courses CRUD
 - [x] Sprint 3 - document upload + extraction
 - [x] Sprint 4 - async job system
-- [ ] Sprint 5 - flashcard generation + manual deck CRUD
+- [x] Sprint 5 - flashcard generation + manual deck CRUD
 - [ ] Sprint 6 - SRS algorithm + daily review queue
 - [ ] Sprint 7 - quiz generation + multi-type quiz UI
 - [ ] Sprint 8 - quiz attempts, scoring, past-mistakes mode
@@ -91,3 +96,10 @@ firebase deploy --only firestore:rules,firestore:indexes,storage
 - [ ] Sprint 12 - analytics, polish, launch
 
 See [docs/app_specification.md](docs/app_specification.md) for the full plan.
+
+## Current data limitations
+
+- Deleting a course removes only the course record; its existing resources are not cascaded.
+- Deleting a document removes its source and extracted text, but generated decks and summaries are retained.
+- A failed registration after a completed Storage upload can leave an abandoned object. Clients retry registration against the same canonical path and do not delete it automatically.
+- Existing optional deck/card text cannot be cleared through the current API; the clients surface that limitation instead of reporting a false successful clear.

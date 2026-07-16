@@ -1,17 +1,23 @@
-# cramly
+# Cramly mobile
 
-Cramly — AI-powered study app for college students
+The Flutter client uses Riverpod, GoRouter, Firebase listeners and Storage uploads, with canonical writes sent through the existing FastAPI service. The Learning Trace visual system and all brand fonts are bundled locally for deterministic rendering.
 
-## Getting Started
+## Requirements
 
-This project is a starting point for a Flutter application.
+- Flutter 3.44.6 (project Dart SDK constraint `^3.11.3`)
+- The existing Android and iOS Firebase configuration files
+- A reachable FastAPI base URL configured through the existing app environment
 
-A few resources to get you started if this is your first Flutter project:
+Run verification from this directory:
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+dart format --output=none --set-exit-if-changed lib test
+flutter analyze
+flutter test
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Live Google sign-in also requires the external Android SHA/OAuth setup and iOS plist URL-scheme setup. Email/password authentication and the mock-based tests do not depend on that console work.
+
+Quizzes, podcasts, spaced repetition, daily queues, voice study, and analytics remain clearly disabled. Review is intentionally linear and write-free; it does not create sessions or update card statistics.
+
+See [../docs/SETUP.md](../docs/SETUP.md) for the full repository setup flow.

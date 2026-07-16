@@ -20,21 +20,21 @@ enum DocumentSourceType {
   webUrl;
 
   String toJson() => switch (this) {
-        DocumentSourceType.webUrl => 'web_url',
-        _ => name,
-      };
+    DocumentSourceType.webUrl => 'web_url',
+    _ => name,
+  };
 
   static DocumentSourceType fromJson(String raw) => switch (raw) {
-        'pdf' => DocumentSourceType.pdf,
-        'docx' => DocumentSourceType.docx,
-        'pptx' => DocumentSourceType.pptx,
-        'markdown' => DocumentSourceType.markdown,
-        'image' => DocumentSourceType.image,
-        'audio' => DocumentSourceType.audio,
-        'youtube' => DocumentSourceType.youtube,
-        'web_url' => DocumentSourceType.webUrl,
-        _ => DocumentSourceType.pdf,
-      };
+    'pdf' => DocumentSourceType.pdf,
+    'docx' => DocumentSourceType.docx,
+    'pptx' => DocumentSourceType.pptx,
+    'markdown' => DocumentSourceType.markdown,
+    'image' => DocumentSourceType.image,
+    'audio' => DocumentSourceType.audio,
+    'youtube' => DocumentSourceType.youtube,
+    'web_url' => DocumentSourceType.webUrl,
+    _ => DocumentSourceType.pdf,
+  };
 }
 
 enum DocumentStatus {
@@ -44,12 +44,12 @@ enum DocumentStatus {
   failed;
 
   static DocumentStatus fromJson(String raw) => switch (raw) {
-        'uploading' => DocumentStatus.uploading,
-        'extracting' => DocumentStatus.extracting,
-        'ready' => DocumentStatus.ready,
-        'failed' => DocumentStatus.failed,
-        _ => DocumentStatus.extracting,
-      };
+    'uploading' => DocumentStatus.uploading,
+    'extracting' => DocumentStatus.extracting,
+    'ready' => DocumentStatus.ready,
+    'failed' => DocumentStatus.failed,
+    _ => DocumentStatus.extracting,
+  };
 
   String toJson() => name;
 }
@@ -84,6 +84,7 @@ class Document with _$Document {
     int? pageCount,
     @Default(0) int wordCount,
     String? extractedTextPath,
+    String? extractionJobId,
     String? errorMessage,
     @Default(GeneratedAssets()) GeneratedAssets generatedAssets,
     DateTime? uploadedAt,
@@ -94,10 +95,13 @@ class Document with _$Document {
     return Document(
       id: json['id'] as String? ?? '',
       courseId: json['courseId'] as String? ?? '',
-      sourceType:
-          DocumentSourceType.fromJson(json['sourceType'] as String? ?? 'pdf'),
+      sourceType: DocumentSourceType.fromJson(
+        json['sourceType'] as String? ?? 'pdf',
+      ),
       title: json['title'] as String? ?? '',
-      status: DocumentStatus.fromJson(json['status'] as String? ?? 'extracting'),
+      status: DocumentStatus.fromJson(
+        json['status'] as String? ?? 'extracting',
+      ),
       fileName: json['fileName'] as String?,
       fileSize: (json['fileSize'] as num?)?.toInt(),
       mimeType: json['mimeType'] as String?,
@@ -106,28 +110,30 @@ class Document with _$Document {
       pageCount: (json['pageCount'] as num?)?.toInt(),
       wordCount: (json['wordCount'] as num?)?.toInt() ?? 0,
       extractedTextPath: json['extractedTextPath'] as String?,
+      extractionJobId: json['extractionJobId'] as String?,
       errorMessage: json['errorMessage'] as String?,
       generatedAssets: json['generatedAssets'] is Map<String, dynamic>
           ? GeneratedAssets.fromJson(
-              json['generatedAssets'] as Map<String, dynamic>)
+              json['generatedAssets'] as Map<String, dynamic>,
+            )
           : const GeneratedAssets(),
       uploadedAt: _parseDate(json['uploadedAt']),
       extractedAt: _parseDate(json['extractedAt']),
     );
   }
 
-  factory Document.fromFirestore(
-    DocumentSnapshot<Map<String, dynamic>> snap,
-  ) {
+  factory Document.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snap) {
     final data = snap.data() ?? const {};
     return Document(
       id: snap.id,
       courseId: data['courseId'] as String? ?? '',
-      sourceType:
-          DocumentSourceType.fromJson(data['sourceType'] as String? ?? 'pdf'),
+      sourceType: DocumentSourceType.fromJson(
+        data['sourceType'] as String? ?? 'pdf',
+      ),
       title: data['title'] as String? ?? '',
       status: DocumentStatus.fromJson(
-          data['status'] as String? ?? 'extracting'),
+        data['status'] as String? ?? 'extracting',
+      ),
       fileName: data['fileName'] as String?,
       fileSize: (data['fileSize'] as num?)?.toInt(),
       mimeType: data['mimeType'] as String?,
@@ -136,10 +142,12 @@ class Document with _$Document {
       pageCount: (data['pageCount'] as num?)?.toInt(),
       wordCount: (data['wordCount'] as num?)?.toInt() ?? 0,
       extractedTextPath: data['extractedTextPath'] as String?,
+      extractionJobId: data['extractionJobId'] as String?,
       errorMessage: data['errorMessage'] as String?,
       generatedAssets: data['generatedAssets'] is Map<String, dynamic>
           ? GeneratedAssets.fromJson(
-              Map<String, dynamic>.from(data['generatedAssets'] as Map))
+              Map<String, dynamic>.from(data['generatedAssets'] as Map),
+            )
           : const GeneratedAssets(),
       uploadedAt: (data['uploadedAt'] as Timestamp?)?.toDate(),
       extractedAt: (data['extractedAt'] as Timestamp?)?.toDate(),

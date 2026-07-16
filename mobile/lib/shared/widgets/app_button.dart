@@ -33,30 +33,27 @@ class AppButton extends StatelessWidget {
     final disabled = onPressed == null || busy;
 
     final (bg, fg, border) = switch (variant) {
-      AppButtonVariant.primary => (c.accent, c.textOnAccent, null),
-      AppButtonVariant.secondary => (c.bgCard, c.textPrimary, c.border),
-      AppButtonVariant.ghost => (Colors.transparent, c.accent, null),
-      AppButtonVariant.destructive => (c.errorSubtle, c.error, null),
+      AppButtonVariant.primary => (c.primary, c.textOnAccent, c.primary),
+      AppButtonVariant.secondary => (c.surface, c.foreground, c.border),
+      AppButtonVariant.ghost => (
+        Colors.transparent,
+        c.primary,
+        Colors.transparent,
+      ),
+      AppButtonVariant.destructive => (
+        Colors.transparent,
+        c.danger,
+        c.danger.withValues(alpha: 0.38),
+      ),
     };
 
-    final padding = switch (size) {
-      AppButtonSize.sm =>
-        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      AppButtonSize.md =>
-        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      AppButtonSize.lg =>
-        const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+    final (height, horizontalPadding, fontSize, iconSize) = switch (size) {
+      AppButtonSize.sm => (44.0, 14.0, 13.0, 16.0),
+      AppButtonSize.md => (48.0, 18.0, 15.0, 18.0),
+      AppButtonSize.lg => (52.0, 20.0, 16.0, 19.0),
     };
 
-    final fontSize = switch (size) {
-      AppButtonSize.sm => 13.0,
-      AppButtonSize.md => 15.0,
-      AppButtonSize.lg => 16.0,
-    };
-
-    final iconSize = size == AppButtonSize.sm ? 16.0 : 18.0;
-
-    final child = Row(
+    final contents = Row(
       mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -69,40 +66,58 @@ class AppButton extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation(fg),
             ),
           )
-        else if (icon != null) ...[
-          Icon(icon, size: iconSize, color: fg),
-          const SizedBox(width: Spacing.sm),
-        ],
-        if (!busy)
+        else ...[
+          if (icon != null) ...[
+            Icon(icon, size: iconSize, color: fg),
+            const SizedBox(width: Spacing.sm),
+          ],
           Text(
             label,
             style: TextStyle(
               color: fg,
               fontSize: fontSize,
               fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
             ),
           ),
+        ],
       ],
     );
 
-    return Opacity(
-      opacity: disabled ? 0.5 : 1,
-      child: Material(
-        color: bg,
-        borderRadius: Radii.buttonRadius,
-        child: InkWell(
-          onTap: disabled ? null : onPressed,
-          borderRadius: Radii.buttonRadius,
-          child: Container(
-            padding: padding,
-            decoration: BoxDecoration(
+    final button = Semantics(
+      button: true,
+      enabled: !disabled,
+      label: busy ? '$label, in progress' : label,
+      child: ExcludeSemantics(
+        child: AnimatedOpacity(
+          opacity: disabled ? 0.47 : 1,
+          duration: context.reduceMotion ? Duration.zero : AppDurations.control,
+          child: Material(
+            color: bg,
+            shape: RoundedRectangleBorder(
               borderRadius: Radii.buttonRadius,
-              border: border != null ? Border.all(color: border) : null,
+              side: BorderSide(color: border),
             ),
-            child: child,
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: disabled ? null : onPressed,
+              focusColor: c.poppySubtle,
+              hoverColor: variant == AppButtonVariant.primary
+                  ? c.textOnAccent.withValues(alpha: 0.08)
+                  : c.surfaceSoft,
+              highlightColor: c.primary.withValues(alpha: 0.1),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: 44, minHeight: height),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  child: Center(child: contents),
+                ),
+              ),
+            ),
           ),
         ),
       ),
     );
+    return fullWidth ? SizedBox(width: double.infinity, child: button) : button;
   }
 }

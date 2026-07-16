@@ -28,7 +28,11 @@ class DocumentRow extends StatelessWidget {
               borderRadius: const BorderRadius.all(Radius.circular(6)),
             ),
             alignment: Alignment.center,
-            child: Icon(_iconFor(document.sourceType), size: 18, color: c.accent),
+            child: Icon(
+              _iconFor(document.sourceType),
+              size: 18,
+              color: c.accent,
+            ),
           ),
           const SizedBox(width: Spacing.md),
           Expanded(
@@ -70,15 +74,15 @@ class DocumentRow extends StatelessWidget {
   }
 
   IconData _iconFor(DocumentSourceType t) => switch (t) {
-        DocumentSourceType.pdf => Icons.picture_as_pdf,
-        DocumentSourceType.docx => Icons.description,
-        DocumentSourceType.pptx => Icons.slideshow,
-        DocumentSourceType.markdown => Icons.notes,
-        DocumentSourceType.image => Icons.image,
-        DocumentSourceType.audio => Icons.mic,
-        DocumentSourceType.youtube => Icons.play_circle,
-        DocumentSourceType.webUrl => Icons.link,
-      };
+    DocumentSourceType.pdf => Icons.picture_as_pdf,
+    DocumentSourceType.docx => Icons.description,
+    DocumentSourceType.pptx => Icons.slideshow,
+    DocumentSourceType.markdown => Icons.notes,
+    DocumentSourceType.image => Icons.image,
+    DocumentSourceType.audio => Icons.mic,
+    DocumentSourceType.youtube => Icons.play_circle,
+    DocumentSourceType.webUrl => Icons.link,
+  };
 
   String _subtitle(Document d) {
     final parts = <String>[];
@@ -99,14 +103,22 @@ class _StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      DocumentStatus.uploading =>
-        const AppBadge(label: 'Uploading', color: AppBadgeColor.secondary),
-      DocumentStatus.extracting =>
-        const AppBadge(label: 'Extracting', color: AppBadgeColor.secondary),
-      DocumentStatus.ready =>
-        const AppBadge(label: 'Ready', color: AppBadgeColor.success),
-      DocumentStatus.failed =>
-        const AppBadge(label: 'Failed', color: AppBadgeColor.error),
+      DocumentStatus.uploading => const AppBadge(
+        label: 'Uploading',
+        color: AppBadgeColor.secondary,
+      ),
+      DocumentStatus.extracting => const AppBadge(
+        label: 'Extracting',
+        color: AppBadgeColor.secondary,
+      ),
+      DocumentStatus.ready => const AppBadge(
+        label: 'Ready',
+        color: AppBadgeColor.success,
+      ),
+      DocumentStatus.failed => const AppBadge(
+        label: 'Failed',
+        color: AppBadgeColor.error,
+      ),
     };
   }
 }
